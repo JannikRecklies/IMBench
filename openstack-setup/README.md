@@ -11,22 +11,45 @@ The purpose of these instructions is to first create a VM on OpenStack acting as
 
 4. Give VM floating IP and access it through ssh (The cloud-init process may take a few minutes)
 
-### Setting up worker nodes for K3s Cluster
-1. Generate ssh keys: 
+### Setting up worker nodes for K3s Cluster (automatically)
+
+1. Download the Runtime Configuration (RC) file from the SSC site (under Project > API Access) and set API access password (Goto https://cloud.snic.se/, Left frame, under Services "Set your API
+password".).
+
+2. Switch directory:
+    ```console 
+    cd /home/ubuntu/IMBench/openstack-setup
+    ```
+
+2. Then automatically set up worker nodes for K3s Cluster by running the setup_k3s_worker.sh script:
+    ```console 
+    chmod +x setup_k3s_worker.sh
+    ./setup_k3s_worker.sh
+    ```
+
+3. Wait until workers have been finished initializing (the cloud-init process may take a few minutes) and they are being registered as nodes in the k3s cluster. The progress of the cloud-init can be seen by running the following commands:
+    ```console 
+    ssh -i /home/ubuntu/.ssh/cluster-key appuser@<Worker-VM-IP>
+    sudo cat /var/log/cloud-init-output.log
+    ```
+
+### Not recommended: Setting up worker nodes for K3s Cluster (manually)
+
+1. Download the Runtime Configuration (RC) file from the SSC site (under Project > API Access) and set API access password (Goto https://cloud.snic.se/, Left frame, under Services "Set your API
+password".).
+
+2. Generate ssh keys: 
     ```console 
     ssh-keygen -t rsa
     ```
     (Set the file path /home/ubuntu/.ssh/cluster-key Do not set the password, simply press enter twice)
 
-2. Replace values for ssh_authorized_keys, K3S_URL, K3S_TOKEN in file cloud-config-worker.yml. The values can be retrieved by entering the following lines in the terminal:
+3. Replace values for ssh_authorized_keys, K3S_URL, K3S_TOKEN in file cloud-config-worker.yml. The values can be retrieved by entering the following lines in the terminal:
     ```console 
     sudo cat /home/ubuntu/.ssh/cluster-key.pub
     hostname -I
     sudo cat /var/lib/rancher/k3s/server/node-token
-    ```
-
-3. Download the Runtime Configuration (RC) file from the SSC site and set API access password (Goto https://cloud.snic.se/, Left frame, under Services "Set your API
-password".). 
+    ``` 
 
 4. Set the environment variables by sourcing the RC-file in the client VM:
     ```console 
