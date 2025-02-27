@@ -98,12 +98,12 @@ def plot_weight_distribution(weights, num_bins=50):
     axes[0].set_ylabel("Frequency", fontsize=10)
     axes[0].set_title("Edge Weight Distribution (Linear Scale)", fontsize=12, fontweight="bold")
 
-    # Histogram of weights (log-log scale)
+    # Histogram of weights (log scale)
     axes[1].hist(weights, bins=num_bins, color="r", edgecolor="black", alpha=0.7)
     axes[1].set_yscale("log")
     axes[1].set_xlabel("Edge Weight (log scale)", fontsize=10)
     axes[1].set_ylabel("Frequency (log scale)", fontsize=10)
-    axes[1].set_title("Edge Weight Distribution (Log-Log Scale)", fontsize=12, fontweight="bold")
+    axes[1].set_title("Edge Weight Distribution (Log Scale)", fontsize=12, fontweight="bold")
 
     plt.tight_layout()
     plt.show()
@@ -298,8 +298,9 @@ if __name__ == "__main__":
     
     # test weight distribution
     G = social_graph_generators.generate_hk_graph(1000)
-    graph, weights = social_graph_generators.assign_edge_weights_degree(G)
+    graph, weights = social_graph_generators.assign_edge_weights(G, alpha=1, lognorm_mu=0, lognorm_sigma=0.5)
     plot_weight_distribution(weights, num_bins=100)
     plot_avg_weight_vs_avg_degree(G, num_bins=10)
     plot_weight_vs_degree(G)
+    # plot_avg_weight_vs_common_neighbors(G)
     # plot_total_weight_vs_degree(G)
