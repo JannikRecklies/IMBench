@@ -1,0 +1,26 @@
+#cloud-config
+
+apt_update: true
+apt_upgrade: true
+
+packages:
+  - apt-transport-https 
+  - ca-certificates 
+  - curl
+
+users:
+  - name: appuser
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    home: /home/appuser
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - <SSH_AUTHORIZED_KEYS> 
+      #- ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCiFLeGDiCOdV+l/RExTOed+5fby41Oz4gYeh8SoDDEFtjmyNW6rB7ZFMaMFaM4SoiUeQfkqjbvcircCcqDth+yc+gEu1F/lrNf7p+5ms7ZPeJGDlyTriom9HI+rWUCkwNUWBz6TVe0Ig1w0TJG3CKiURJbyx9TWuaOdip/IoCXsBTXq9e8UGGTzb/F6+q1clLlyreQxDWNDEXLFiNYlRO9650ajRLQc6hRaADNQO2clh9dx5ft+lb1CUcpOErZtxqWnE0QgtTTjPV6Nllp1JcbKBiRCEX5cKx8j68hzwecO/vXiOW5A/NEnK331V+8BxRV3iBDgQSfGLgadGXOqPpr8lPDrYbmII8CWqNLI/DLHqraLT7cIMn+j5j7LnrsmXdRjq+T4D8hi/ZE45ELDfb7MwdM/Hleu8qZi7F6BPEpmdniW4vFGQwBT7j2sCkTQhjgqHQADLnMQHBGTgMuZybltsTmaP7YYCRS6gBi1BM/X3wF6wZmtI3JJpvjD4aGmik= ubuntu@jannik-recklies
+
+runcmd:
+  #- curl -sfL https://get.k3s.io | K3S_URL=https://192.168.2.240:6443 K3S_TOKEN=K10dc8dea9fa0092a9fb70bc98597b7411949399cab0827e8c3ae9291c0af563f11::server:831b3a3a4a7f9c54e256cedb02a23343 sh -
+  - curl -sfL https://get.k3s.io | K3S_URL=https://<K3S_IP>:6443 K3S_TOKEN=<K3S_TOKEN> sh -
+
+byobu_default: system
+
+final_message: "The system is finally up, after $UPTIME seconds"
