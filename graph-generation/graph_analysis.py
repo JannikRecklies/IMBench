@@ -1,7 +1,7 @@
 import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt
-import social_graph_generators
+import social_graph_generator
 import seaborn as sns
 import pandas as pd
 from collections import defaultdict
@@ -36,24 +36,16 @@ def compute_graph_statistics(G):
     }
 
 # Function to run experiments for a single graph type at different sizes
-def experiment_graph_model(graph_type):
+def experiment_graph_model():
     sizes = [100, 500, 1000]
     results = {}
 
-    print(f"\n🔍 Running Experiments for {graph_type} Graph...\n")
+    print(f"\n🔍 Running Experiments for HK Graph...\n")
 
     for n in sizes:
-        print(f"📊 Generating {graph_type} Graph with {n} Nodes...")
+        print(f"📊 Generating HK Graph with {n} Nodes...")
 
-        # Generate graph based on type
-        if graph_type == "WS":
-            G = social_graph_generators.generate_ws_graph(n)
-        elif graph_type == "BA":
-            G = social_graph_generators.generate_ba_graph(n)
-        elif graph_type == "HK":
-            G = social_graph_generators.generate_hk_graph(n)
-        else:
-            raise ValueError("Invalid graph type! Choose from: WS, BA, HK.")
+        G = social_graph_generator.generate_hk_graph(n)
 
         # Compute statistics
         stats = compute_graph_statistics(G)
@@ -71,7 +63,7 @@ def experiment_graph_model(graph_type):
         ax.set_xlabel("Node Degree", fontsize=10)
         ax.set_ylabel("Frequency (log scale)", fontsize=10)
         ax.set_yscale("log")
-        ax.set_title(f"{graph_type} ({n} Nodes)", fontsize=12, fontweight="bold")
+        ax.set_title(f"HK ({n} Nodes)", fontsize=12, fontweight="bold")
         ax.grid(axis="y", linestyle="dotted", alpha=0.7)
 
         # Add statistics as text inside each plot
@@ -101,7 +93,7 @@ def plot_weight_distribution(weights, num_bins=50):
     # Histogram of weights (log scale)
     axes[1].hist(weights, bins=num_bins, color="r", edgecolor="black", alpha=0.7)
     axes[1].set_yscale("log")
-    axes[1].set_xlabel("Edge Weight (log scale)", fontsize=10)
+    axes[1].set_xlabel("Edge Weight", fontsize=10)
     axes[1].set_ylabel("Frequency (log scale)", fontsize=10)
     axes[1].set_title("Edge Weight Distribution (Log Scale)", fontsize=12, fontweight="bold")
 
@@ -297,8 +289,8 @@ if __name__ == "__main__":
     # experiment_graph_model("HK")  # Change to desired graph type
     
     # test weight distribution
-    G = social_graph_generators.generate_hk_graph(1000)
-    graph, weights = social_graph_generators.assign_edge_weights(G, alpha=1, lognorm_mu=0, lognorm_sigma=0.5)
+    G = social_graph_generator.generate_hk_graph(1000)
+    graph, weights = social_graph_generator.assign_edge_weights(G, alpha=0.5, lognorm_mu=0, lognorm_sigma=0.5)
     plot_weight_distribution(weights, num_bins=100)
     plot_avg_weight_vs_avg_degree(G, num_bins=10)
     plot_weight_vs_degree(G)
