@@ -1,39 +1,52 @@
 import asyncio
 import websockets
+import json
 
-# DenIM WebSocket Server Address (Update if necessary)
+# Server address (Modify if needed)
 DENIM_SERVER_URL = "ws://130.238.29.99:8080"
 
-async def client(identifier):
-    """Connects a client to the DenIM WebSocket and exchanges messages."""
-    async with websockets.connect(DENIM_SERVER_URL) as ws:
-        print(f"{identifier} connected to DenIM.")
+# Dummy users
+USERS = {
+    "user1": {"id": "user1", "name": "Alice"},
+    "user2": {"id": "user2", "name": "Bob"}
+}
 
-        # Send initial message
-        await ws.send(f"{identifier}: Hello from {identifier}!")
-        print(f"{identifier} → Sent initial message.")
+async def send_message(websocket, sender, receiver):
+    """Send a message from sender to receiver"""
+    message = {
+        "type": "MESSAGE",
+        "from": sender["id"],
+        "to": receiver["id"],
+        "content": f"Hello from {sender['name']}!"
+    }
+    await websocket.send(json.dumps(message))
+    print(f"📤 {sender['name']} sent message to {receiver['name']}")
 
+async def receive_messages(websocket, user):
+    """Receive messages for a user"""
+    async for msg in websocket:
+        data = json.loads(msg)
+        print(f"📩 {user['name']} received: {data}")
+
+async def client(user, peer):
+    """Each client connects, sends messages, and listens"""
+    async with websockets.connect(DENIM_SERVER_URL) as websocket:
+        print(f"✅ {user['name']} connected to DenIM")
+
+        # Task to receive messages
+        asyncio.create_task(receive_messages(websocket, user))
+
+        # Send messages every 10 seconds
         while True:
-            try:
-                # Wait for incoming messages
-                response = await ws.recv()
-                print(f"{identifier} ← Received: {response}")
+            await send_message(websocket, user, peer)
+            await asyncio.sleep(10)
 
-                # Send a message every 5 seconds
-                await asyncio.sleep(5)
-                await ws.send(f"{identifier}: Ping!")
-                print(f"{identifier} → Sent: Ping!")
-
-            except websockets.exceptions.ConnectionClosed:
-                print(f"{identifier} disconnected from server.")
-                break
-
-# Run two clients in parallel
 async def main():
-    client1 = asyncio.create_task(client("user1"))
-    client2 = asyncio.create_task(client("user2"))
+    """Run both clients concurrently"""
+    await asyncio.gather(
+        client(USERS["user1"], USERS["user2"]),
+        client(USERS["user2"], USERS["user1"])
+    )
 
-    await asyncio.gather(client1, client2)
-
-if __name__ == "__main__":
-    asyncio.run(main())
+# Start clients
+asyncio.run(main())
