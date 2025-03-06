@@ -97,13 +97,14 @@ export class ClientWrapper {
         info(`Message received`);
         const denimMsg = denim_proto.DenimMessage.decode(data.binaryData);
         const processedMessages: Array<Message> = await this.denimClient.process(denimMsg);
+        info(`Processed messages: ${processedMessages.length}`);
         
         for (const processedMessage of processedMessages) {
             let msg = processedMessage.message;
-            info(`Message received: ${processedMessage.messageType}`);
+            info(`Message received with type: ${processedMessage.messageType}`);
 
             if (processedMessage.messageType === Constants.MESSAGE_TYPE_TEXT) {
-                info(`Message received: ${processedMessage}`);
+                info(`Message received with content: ${processedMessage}`);
                 // 🔹 Emit the event so external code can react
                 this.eventEmitter.emit("message", {
                     sender: processedMessage.sender.name(),
@@ -111,13 +112,22 @@ export class ClientWrapper {
                 });
             } else if (processedMessage.messageType === Constants.MESSAGE_TYPE_KEY_RESPONSE) {
                 const receivedAddress = Util.signalAddressToString(processedMessage.sender);
-                info(`Key response received for user: ${receivedAddress}`);
+                this.regularKeys.set(receivedAddress, Constants.KEY_STATE_RECEIVED);
+                info(`Key response received for user: ${receivedAddress}. RegularKeys Size: ${this.regularKeys.size}`);
 
-                if (!processedMessage.deniable) {
-                    this.regularKeys.set(receivedAddress, Constants.KEY_STATE_RECEIVED);
-                } else {
-                    this.deniableKeys.set(receivedAddress, Constants.KEY_STATE_RECEIVED);
+                //Send queued messages
+                const toSend = this.queuedRegularMessages.filter(msg => 
+                    Util.signalAddressToString(msg.receiver) === receivedAddress);
+                
+                for(const msg of toSend){
+                    info(`Sending queued regular message: ${msg}`);
+                    //const sessionOngoing = (await this.denimClient.regularSessionStore.getSession(msg.receiver)).hasCurrentState();
+                    // info(`Regular session started: ${sessionOngoing}`);
+                    const denimMsg = await this.denimClient.createRegularMessage(msg.message, msg.receiver);
+                    this.sendFunction(denimMsg)
                 }
+
+                this.queuedRegularMessages = []
             } else if(processedMessage.messageType==Constants.MESSAGE_TYPE_ERROR_KEY_REQUEST){ 
                             
                 info(`Key request for ${processedMessage.sender.name()} failed, resending (deniable=${processedMessage.deniable})`);
@@ -150,23 +160,28 @@ export class ClientWrapper {
     /**
      * Sends a message to another client.
      */
-    async sendMessage(denimMsg: Uint8Array) {
-        if (!this.sendFunction) {
-            error("Client is not connected.");
-            return;
+    async sendMessage(message: string, recipientId: string) {
+        const recipientSignalAddress = SignalLib.ProtocolAddress.new(recipientId, Constants.DEFAULT_DEVICE_ID);
+        const msg = new Message(message, this.denimClient.address, recipientSignalAddress, false, Constants.MESSAGE_TYPE_KEY_RESPONSE)
+        //const denimMsg = await this.denimClient.createRegularMessage(message, clientSignalAddress);
+        
+        let keyStatus = this.regularKeys.get(Util.signalAddressToString(recipientSignalAddress));
+        // let denimMsg:Uint8Array;
+        if(keyStatus==null) { // If there's no entry, we haven't requested keys for this user
+            info(`Client ${this.denimClient.address.name()} has no key for ${recipientId}: ${this.regularKeys.size}`);
+            this.regularKeys.set(Util.signalAddressToString(recipientSignalAddress), Constants.KEY_STATE_IN_FLIGHT);
+            this.queuedRegularMessages.push(msg);
+            
+            let keyRequest = this.denimClient.createKeyRequest(recipientSignalAddress);
+            this.sendFunction(keyRequest);
+        } else if(keyStatus==Constants.KEY_STATE_RECEIVED) {
+            info(`Client ${this.denimClient.address.name()} has key for ${recipientId}: ${this.regularKeys.size}`);
+            const denimMsg = await this.denimClient.createRegularMessage(message, recipientSignalAddress);
+            this.sendFunction(denimMsg);
+        } else if(keyStatus==Constants.KEY_STATE_IN_FLIGHT) {
+            info(`Client ${this.denimClient.address.name()} is waiting for key for ${recipientId}: ${this.regularKeys.size}`);
+            this.queuedRegularMessages.push(msg);
         }
-
-        //let recipientAddress = SignalLib.ProtocolAddress.new(recipientId, this.deviceId);
-        // const denimMsg = this.denimClient.createKeyRequest(recipientAddress);
-        this.sendFunction(denimMsg);
-
-        info(`Sent message`);
-    }
-
-    async createMessage(message: string, recipientId: string) {
-        const clientSignalAddress = SignalLib.ProtocolAddress.new(recipientId, Constants.DEFAULT_DEVICE_ID);
-        const denimMsg = await this.denimClient.createRegularMessage(message, clientSignalAddress);
-        return denimMsg
     }
 
     /**

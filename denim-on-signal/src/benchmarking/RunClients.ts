@@ -14,23 +14,24 @@ async function run() {
     // 🔹 React when a message is received
     client1.on("message", (data) => {
         console.log(`📩 Client 1 received from ${data.sender}: ${data.message}`);
-        
+        setTimeout(() => {
+            console.log("📤 Client 1 responding...");
+            client1.sendMessage("Hello from client 1!", data.sender);
+        }, 5000);
     });
 
     client2.on("message", (data) => {
         console.log(`📩 Client 2 received from ${data.sender}: ${data.message}`);
-        
+        setTimeout(() => {
+            console.log("📤 Client 2 responding...");
+            client2.sendMessage("Hello from client 2!", data.sender);
+        }, 5000);
     });
-
-
-    await client1.regularKeyRequest("2")
-    await client2.regularKeyRequest("1")
 
     // Start conversation AFTER ensuring connections are stable
     setTimeout(async () => {
         console.log("📤 Client 1 sending initial message...");
-        let msg = await client1.createMessage("Hello from client 1!", "2")
-        await client1.sendMessage(msg);
+        await client1.sendMessage("Hello from client 1!", "2")
     }, 2000);
 
 }
