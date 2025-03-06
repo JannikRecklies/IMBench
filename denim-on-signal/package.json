@@ -26,12 +26,16 @@
     "yargs": "^17.4.1"
   },
   "devDependencies": {
-    "@types/node": "^17.0.23",
+    "@types/linkify-it": "^5.0.0",
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^16.18.126",
     "@types/pidusage": "^2.0.2",
     "@types/random-seed": "^0.3.3",
     "@types/tape": "^4.13.2",
+    "linkify-it": "^5.0.0",
     "tape": "^5.5.2",
-    "ts-node": "^10.7.0"
+    "ts-node": "^10.7.0",
+    "typescript": "^5.8.2"
   },
   "engines": {
     "node": ">=16.14.0"
