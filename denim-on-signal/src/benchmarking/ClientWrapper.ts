@@ -8,9 +8,8 @@ import { Message } from '../core/Message';
 import { client as WebSocketClient } from 'websocket';
 import EventEmitter from 'events';
 
-const logger = require('../helper/Logger').getLogger("DenimClientWrapper", Constants.LOGLEVEL);
+const logger = require('../helper/Logger').getLogger("ClientWrapper", Constants.LOGLEVEL);
 const info = (x: string) => logger.info(x);
-const debug = (x: string) => logger.debug(x);
 const error = (x: string) => logger.error(x);
 
 export class ClientWrapper {
@@ -22,10 +21,8 @@ export class ClientWrapper {
     private sendFunction: ((x: Uint8Array) => void) | null = null;
     private eventEmitter: EventEmitter;
     private serverConnections = new Map<string, any>();
-    private deniableKeys = new Map<string, string>();
-    private regularKeys = new Map<string, string>();
-    private queuedRegularMessages: Array<Message> = [];
-    private queuedDeniableMessages: Array<Message> = [];
+    private regularKeys = new Map<string, string>(); // Stores key statuses
+    private queuedRegularMessages: Array<Message> = []; // Messages waiting for keys
 
     constructor(clientId: string, deviceId = Constants.DEFAULT_DEVICE_ID, serverAddress: string) {
         this.clientId = clientId;
@@ -42,8 +39,11 @@ export class ClientWrapper {
         info(`Initializing DenimClient ${this.clientSignalAddress.name()}`);
         this.denimClient = await newDenimClient(this.clientId, this.deviceId);
         this.sendFunction = await this.initConnection();
+
+        // 🔹 Register the client with the server
         const registerBytes = await this.denimClient.createRegisterThreadUnsafe();
         this.sendFunction(registerBytes);
+        
         info(`Client ${this.clientSignalAddress.name()} is ready.`);
     }
 
@@ -55,7 +55,7 @@ export class ClientWrapper {
             let client = new WebSocketClient({ tlsOptions: { rejectUnauthorized: false } });
 
             client.on('connectFailed', (errorMessage) => {
-                error(`Failed to connect to ${this.serverAddress}. Connect error: ${errorMessage.toString()}`);
+                error(`Failed to connect to ${this.serverAddress}: ${errorMessage.toString()}`);
                 reject(errorMessage);
             });
 
@@ -69,24 +69,21 @@ export class ClientWrapper {
                 });
 
                 connection.on('close', (reasonCode, description) => {
-                    info(`Connection closed: ${reasonCode}, description: ${description}`);
+                    info(`Connection closed: ${reasonCode}, ${description}`);
                 });
 
                 connection.on('message', (data) => this.onMessage(data));
 
-                function sendMessage(x: Uint8Array) {
+                resolve((x: Uint8Array) => {
                     if (connection.connected) {
                         connection.send(x);
                     } else {
-                        throw `Attempting to send on a closed connection.`;
+                        error("Attempting to send on a closed connection.");
                     }
-                }
-
-                resolve(sendMessage);
+                });
             });
 
             client.connect(this.serverAddress, Constants.PROTOCOL);
-            
         });
     }
 
@@ -94,67 +91,61 @@ export class ClientWrapper {
      * Handles incoming messages.
      */
     private async onMessage(data) {
-        info(`Message received`);
+        info(`📩 Message received`);
         const denimMsg = denim_proto.DenimMessage.decode(data.binaryData);
         const processedMessages: Array<Message> = await this.denimClient.process(denimMsg);
-        info(`Processed messages: ${processedMessages.length}`);
+        
+        info(`🔄 Processed ${processedMessages.length} messages`);
         
         for (const processedMessage of processedMessages) {
-            let msg = processedMessage.message;
-            info(`Message received with type: ${processedMessage.messageType}`);
-
-            if (processedMessage.messageType === Constants.MESSAGE_TYPE_TEXT) {
-                info(`Message received with content: ${processedMessage}`);
-                // 🔹 Emit the event so external code can react
-                this.eventEmitter.emit("message", {
-                    sender: processedMessage.sender.name(),
-                    message: msg,
-                });
-            } else if (processedMessage.messageType === Constants.MESSAGE_TYPE_KEY_RESPONSE) {
-                const receivedAddress = Util.signalAddressToString(processedMessage.sender);
-                this.regularKeys.set(receivedAddress, Constants.KEY_STATE_RECEIVED);
-                info(`Key response received for user: ${receivedAddress}. RegularKeys Size: ${this.regularKeys.size}`);
-
-                //Send queued messages
-                const toSend = this.queuedRegularMessages.filter(msg => 
-                    Util.signalAddressToString(msg.receiver) === receivedAddress);
-                
-                for(const msg of toSend){
-                    info(`Sending queued regular message: ${msg}`);
-                    //const sessionOngoing = (await this.denimClient.regularSessionStore.getSession(msg.receiver)).hasCurrentState();
-                    // info(`Regular session started: ${sessionOngoing}`);
-                    const denimMsg = await this.denimClient.createRegularMessage(msg.message, msg.receiver);
-                    this.sendFunction(denimMsg)
-                }
-
-                this.queuedRegularMessages = []
-            } else if(processedMessage.messageType==Constants.MESSAGE_TYPE_ERROR_KEY_REQUEST){ 
-                            
-                info(`Key request for ${processedMessage.sender.name()} failed, resending (deniable=${processedMessage.deniable})`);
-
-                if(processedMessage.deniable==false) {
-                    const denimMsg = this.denimClient.createKeyRequest(processedMessage.sender);
-                    // Defensive check to make sure experiment is running...
-                    this.sendFunction(denimMsg)
-                } else {
-                    this.denimClient.queueDeniableKeyRequest(processedMessage.sender);
-                }
-
+            switch (processedMessage.messageType) {
+                case Constants.MESSAGE_TYPE_TEXT:
+                    this.handleTextMessage(processedMessage);
+                    break;
+                case Constants.MESSAGE_TYPE_KEY_RESPONSE:
+                    this.handleKeyResponse(processedMessage);
+                    break;
+                case Constants.MESSAGE_TYPE_ERROR_KEY_REQUEST:
+                    this.handleKeyRequestFailure(processedMessage);
+                    break;
+                default:
+                    info(`⚠️ Unknown message type received`);
             }
         }
     }
 
-    async regularKeyRequest(recipientId: string) {
-        let keyStatus = this.regularKeys.get(recipientId);
-        let denimMsg:Uint8Array;
-        if(keyStatus==null) { // If there's no entry, we haven't requested keys for this user
-            let recipientAddress = SignalLib.ProtocolAddress.new(recipientId, this.deviceId);
-            denimMsg = this.denimClient.createKeyRequest(recipientAddress);
-            info(`${this.denimClient.address.name()} requesting regular key for ${recipientAddress}`);
-            this.sendFunction(denimMsg);
-        } else if(keyStatus==Constants.KEY_STATE_RECEIVED) {
-            return
-        }
+    /**
+     * Handles a received text message.
+     */
+    private handleTextMessage(processedMessage: Message) {
+        info(`📨 Message content: ${processedMessage.message}`);
+        this.eventEmitter.emit("message", {
+            sender: processedMessage.sender.name(),
+            message: processedMessage.message,
+        });
+    }
+
+    /**
+     * Handles key response messages.
+     */
+    private async handleKeyResponse(processedMessage: Message) {
+        const receivedAddress = Util.signalAddressToString(processedMessage.sender);
+        this.regularKeys.set(receivedAddress, Constants.KEY_STATE_RECEIVED);
+        info(`🔑 Key received for user: ${receivedAddress}`);
+
+        // 🔹 Send queued messages
+        this.sendQueuedMessages(receivedAddress);
+    }
+
+    /**
+     * Handles key request failures and retries.
+     */
+    private handleKeyRequestFailure(processedMessage: Message) {
+        const senderAddress = Util.signalAddressToString(processedMessage.sender);
+        info(`❌ Key request failed for ${senderAddress}. Retrying...`);
+
+        const keyRequest = this.denimClient.createKeyRequest(processedMessage.sender);
+        this.sendFunction(keyRequest);
     }
 
     /**
@@ -162,30 +153,53 @@ export class ClientWrapper {
      */
     async sendMessage(message: string, recipientId: string) {
         const recipientSignalAddress = SignalLib.ProtocolAddress.new(recipientId, Constants.DEFAULT_DEVICE_ID);
-        const msg = new Message(message, this.denimClient.address, recipientSignalAddress, false, Constants.MESSAGE_TYPE_KEY_RESPONSE)
-        //const denimMsg = await this.denimClient.createRegularMessage(message, clientSignalAddress);
+        const msg = new Message(message, this.denimClient.address, recipientSignalAddress, false, Constants.MESSAGE_TYPE_TEXT);
         
-        let keyStatus = this.regularKeys.get(Util.signalAddressToString(recipientSignalAddress));
-        // let denimMsg:Uint8Array;
-        if(keyStatus==null) { // If there's no entry, we haven't requested keys for this user
-            info(`Client ${this.denimClient.address.name()} has no key for ${recipientId}: ${this.regularKeys.size}`);
-            this.regularKeys.set(Util.signalAddressToString(recipientSignalAddress), Constants.KEY_STATE_IN_FLIGHT);
-            this.queuedRegularMessages.push(msg);
-            
-            let keyRequest = this.denimClient.createKeyRequest(recipientSignalAddress);
+        const recipientKeyStatus = this.regularKeys.get(Util.signalAddressToString(recipientSignalAddress));
+
+        if (!recipientKeyStatus) {
+            // First-time messaging: request a key and queue the message
+            info(`🕒 No key for ${recipientId}. Requesting...`);
+            this.queueMessage(msg);
+            const keyRequest = this.denimClient.createKeyRequest(msg.receiver);
             this.sendFunction(keyRequest);
-        } else if(keyStatus==Constants.KEY_STATE_RECEIVED) {
-            info(`Client ${this.denimClient.address.name()} has key for ${recipientId}: ${this.regularKeys.size}`);
+        } else if (recipientKeyStatus === Constants.KEY_STATE_RECEIVED) {
+            // Key is available, send message immediately
+            info(`📤 Sending message to ${recipientId}`);
             const denimMsg = await this.denimClient.createRegularMessage(message, recipientSignalAddress);
             this.sendFunction(denimMsg);
-        } else if(keyStatus==Constants.KEY_STATE_IN_FLIGHT) {
-            info(`Client ${this.denimClient.address.name()} is waiting for key for ${recipientId}: ${this.regularKeys.size}`);
+        } else {
+            // Key is still in-flight, queue message
+            info(`🕒 Waiting for key to be received for ${recipientId}`);
             this.queuedRegularMessages.push(msg);
         }
     }
 
     /**
-     * Emits events when messages are received.
+     * Queues a message and sends a key request.
+     */
+    private queueMessage(msg: Message) {
+        this.regularKeys.set(Util.signalAddressToString(msg.receiver), Constants.KEY_STATE_IN_FLIGHT);
+        this.queuedRegularMessages.push(msg);
+    }
+
+    /**
+     * Sends queued messages after a key is received.
+     */
+    private async sendQueuedMessages(recipientAddress: string) {
+        const toSend = this.queuedRegularMessages.filter(msg => Util.signalAddressToString(msg.receiver) === recipientAddress);
+        
+        for (const msg of toSend) {
+            info(`📤 Sending queued message: ${msg.message}`);
+            const denimMsg = await this.denimClient.createRegularMessage(msg.message, msg.receiver);
+            this.sendFunction(denimMsg);
+        }
+
+        this.queuedRegularMessages = this.queuedRegularMessages.filter(msg => Util.signalAddressToString(msg.receiver) !== recipientAddress);
+    }
+
+    /**
+     * Allows external code to listen for events.
      */
     on(event: string, listener: (...args: any[]) => void) {
         this.eventEmitter.on(event, listener);
