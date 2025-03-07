@@ -7,6 +7,7 @@ import { denim_proto } from "../proto-generated/compiled";
 import { Message } from '../core/Message';
 import { client as WebSocketClient } from 'websocket';
 import EventEmitter from 'events';
+import fs from 'fs';
 
 const logger = require('../helper/Logger').getLogger("ClientWrapper", Constants.LOGLEVEL);
 const info = (x: string) => logger.info(x);
@@ -23,6 +24,8 @@ export class ClientWrapper {
     private serverConnections = new Map<string, any>();
     private regularKeys = new Map<string, string>(); // Stores key statuses
     private queuedRegularMessages: Array<Message> = []; // Messages waiting for keys
+    private messageLog = [];
+    private logFilePath: string;
 
     constructor(clientId: string, deviceId = Constants.DEFAULT_DEVICE_ID, serverAddress: string) {
         this.clientId = clientId;
@@ -30,6 +33,15 @@ export class ClientWrapper {
         this.serverAddress = serverAddress;
         this.clientSignalAddress = SignalLib.ProtocolAddress.new(clientId, deviceId);
         this.eventEmitter = new EventEmitter();
+        this.logFilePath = `./logs/client_${clientId}_messages.json`;
+
+        // Ensure log directory exists
+        if (!fs.existsSync('./logs')) {
+            fs.mkdirSync('./logs');
+        }
+
+        // Periodically save logs every 10 seconds
+        setInterval(() => this.saveMessageLog(), 10000);
     }
 
     /**
@@ -123,6 +135,24 @@ export class ClientWrapper {
             sender: processedMessage.sender.name(),
             message: processedMessage.message,
         });
+        //////////////
+        const parsedData = JSON.parse(processedMessage.message); // Extract structured message
+        const msg_id = parsedData.msg_id; // Extract msg_id from metadata
+        const sentTime = parseInt(msg_id.split("-")[0]); // Extract timestamp from msg_id
+        const receivedTime = Date.now();
+        const sender = processedMessage.sender.name();
+        const messageSize = Buffer.byteLength(parsedData.message);
+
+        console.log(`📩 [${msg_id}] ${sender} → ${this.clientId} (Size: ${messageSize} bytes)`);
+
+        this.messageLog.push({
+            msg_id: msg_id,
+            sender_id: sender,
+            receiver_id: this.clientId,
+            time_sent: sentTime,
+            time_received: receivedTime,
+            size_bytes: messageSize,
+        });
     }
 
     /**
@@ -153,7 +183,30 @@ export class ClientWrapper {
      */
     async sendMessage(message: string, recipientId: string) {
         const recipientSignalAddress = SignalLib.ProtocolAddress.new(recipientId, Constants.DEFAULT_DEVICE_ID);
-        const msg = new Message(message, this.denimClient.address, recipientSignalAddress, false, Constants.MESSAGE_TYPE_TEXT);
+
+        const timeSent = Date.now();
+        const msg_id = this.generateMessageId();
+        const messageSize = Buffer.byteLength(message);
+
+        // Store sent message metadata
+        this.messageLog.push({
+            msg_id: msg_id,
+            sender_id: this.clientId,
+            receiver_id: recipientId,
+            time_sent: timeSent,
+            time_received: null,
+            size_bytes: messageSize,
+        });
+
+        console.log(`📤 [${msg_id}] ${this.clientId} → ${recipientId} (Size: ${messageSize} bytes)`);
+
+        // Instead of sending raw message, send a JSON object with metadata
+        const messageObject = {
+            msg_id: msg_id, // Attach msg_id to the message metadata
+            message: message,
+        };
+
+        const msg = new Message(JSON.stringify(messageObject), this.denimClient.address, recipientSignalAddress, false, Constants.MESSAGE_TYPE_TEXT);
         
         const recipientKeyStatus = this.regularKeys.get(Util.signalAddressToString(recipientSignalAddress));
 
@@ -166,7 +219,7 @@ export class ClientWrapper {
         } else if (recipientKeyStatus === Constants.KEY_STATE_RECEIVED) {
             // Key is available, send message immediately
             info(`📤 Sending message to ${recipientId}`);
-            const denimMsg = await this.denimClient.createRegularMessage(message, recipientSignalAddress);
+            const denimMsg = await this.denimClient.createRegularMessage(msg.message, msg.receiver);
             this.sendFunction(denimMsg);
         } else {
             // Key is still in-flight, queue message
@@ -203,5 +256,24 @@ export class ClientWrapper {
      */
     on(event: string, listener: (...args: any[]) => void) {
         this.eventEmitter.on(event, listener);
+    }
+
+    /**
+     * Generate a unique message ID (does not affect message content).
+     */
+    private generateMessageId(): string {
+        return `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+    }
+
+    /**
+     * Retrieve stored messages for analysis.
+     */
+    getMessageLog() {
+        return this.messageLog;
+    }
+
+    private saveMessageLog() {
+        fs.writeFileSync(this.logFilePath, JSON.stringify(this.messageLog, null, 2));
+        console.log(`💾 Saved message log for client ${this.clientId}`);
     }
 }

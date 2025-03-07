@@ -1,0 +1,58 @@
+[
+  {
+    "msg_id": "1741357587803-2839",
+    "sender_id": "1",
+    "receiver_id": "2",
+    "time_sent": 1741357587803,
+    "time_received": null,
+    "size_bytes": 20
+  },
+  {
+    "msg_id": "1741357592831-9351",
+    "sender_id": "2",
+    "receiver_id": "1",
+    "time_sent": 1741357592831,
+    "time_received": 1741357592843,
+    "size_bytes": 12
+  },
+  {
+    "msg_id": "1741357597847-2538",
+    "sender_id": "1",
+    "receiver_id": "2",
+    "time_sent": 1741357597847,
+    "time_received": null,
+    "size_bytes": 12
+  },
+  {
+    "msg_id": "1741357602859-9214",
+    "sender_id": "2",
+    "receiver_id": "1",
+    "time_sent": 1741357602859,
+    "time_received": 1741357602864,
+    "size_bytes": 12
+  },
+  {
+    "msg_id": "1741357607868-1989",
+    "sender_id": "1",
+    "receiver_id": "2",
+    "time_sent": 1741357607868,
+    "time_received": null,
+    "size_bytes": 12
+  },
+  {
+    "msg_id": "1741357612877-5747",
+    "sender_id": "2",
+    "receiver_id": "1",
+    "time_sent": 1741357612877,
+    "time_received": 1741357612883,
+    "size_bytes": 12
+  },
+  {
+    "msg_id": "1741357617887-2033",
+    "sender_id": "1",
+    "receiver_id": "2",
+    "time_sent": 1741357617887,
+    "time_received": null,
+    "size_bytes": 12
+  }
+]
