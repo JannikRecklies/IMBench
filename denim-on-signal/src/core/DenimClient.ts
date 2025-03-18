@@ -13,8 +13,8 @@ import { Message } from './Message';
 const crypto = require('crypto');
 import yargs from "yargs";
 
-const logLevel = yargs.argv.debugclient ? 'debug' : 'info';
-
+// const logLevel = yargs.argv.debugclient ? 'debug' : 'info';
+const logLevel = "warn" // for the benchmarking purpose
 
 const logger = require('../helper/Logger').getLogger("DenimClient",logLevel);
 const info = x => logger.info(x)

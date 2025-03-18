@@ -1,6 +1,5 @@
 import Constants = require('../helper/Constants');
 import { DenimClient, newDenimClient } from "../core/DenimClient";
-import { ProtoFactory } from "../helper/ProtoFactory";
 import Util = require('../helper/Util');
 import SignalLib = require('@signalapp/libsignal-client');
 import { denim_proto } from "../proto-generated/compiled";
@@ -10,8 +9,6 @@ import EventEmitter from 'events';
 import fs from 'fs';
 
 const logger = require('../helper/Logger').getLogger("ClientWrapper", Constants.LOGLEVEL);
-const info = (x: string) => logger.info(x);
-const error = (x: string) => logger.error(x);
 
 export class ClientWrapper {
     private clientId: string;
@@ -48,7 +45,7 @@ export class ClientWrapper {
      * Initializes the Denim client and connects to the server.
      */
     async initialize() {
-        info(`Initializing DenimClient ${this.clientSignalAddress.name()}`);
+        logger.debug(`Initializing DenimClient ${this.clientSignalAddress.name()}`);
         this.denimClient = await newDenimClient(this.clientId, this.deviceId);
         this.sendFunction = await this.initConnection();
 
@@ -56,7 +53,7 @@ export class ClientWrapper {
         const registerBytes = await this.denimClient.createRegisterThreadUnsafe();
         this.sendFunction(registerBytes);
         
-        info(`Client ${this.clientSignalAddress.name()} is ready.`);
+        logger.info(`Client ${this.clientSignalAddress.name()} is initialized and ready.`);
     }
 
     /**
@@ -67,21 +64,21 @@ export class ClientWrapper {
             let client = new WebSocketClient({ tlsOptions: { rejectUnauthorized: false } });
 
             client.on('connectFailed', (errorMessage) => {
-                error(`Failed to connect to ${this.serverAddress}: ${errorMessage.toString()}`);
+                logger.error(`Failed to connect to ${this.serverAddress}: ${errorMessage.toString()}`);
                 reject(errorMessage);
             });
 
             client.on('connect', (connection) => {
-                info(`Connected to ${this.serverAddress}`);
+                logger.debug(`Connected to ${this.serverAddress}`);
                 this.serverConnections.set(this.serverAddress, connection);
                 connection.send(Util.signalAddressToString(this.clientSignalAddress));
 
                 connection.on('error', (errorMessage) => {
-                    error(`Connection error: ${errorMessage.toString()}`);
+                    logger.error(`Connection error: ${errorMessage.toString()}`);
                 });
 
                 connection.on('close', (reasonCode, description) => {
-                    info(`Connection closed: ${reasonCode}, ${description}`);
+                    logger.debug(`Connection closed: ${reasonCode}, ${description}`);
                 });
 
                 connection.on('message', (data) => this.onMessage(data));
@@ -90,7 +87,7 @@ export class ClientWrapper {
                     if (connection.connected) {
                         connection.send(x);
                     } else {
-                        error("Attempting to send on a closed connection.");
+                        logger.error("Attempting to send on a closed connection.");
                     }
                 });
             });
@@ -103,11 +100,8 @@ export class ClientWrapper {
      * Handles incoming messages.
      */
     private async onMessage(data) {
-        info(`📩 Message received`);
         const denimMsg = denim_proto.DenimMessage.decode(data.binaryData);
         const processedMessages: Array<Message> = await this.denimClient.process(denimMsg);
-        
-        info(`🔄 Processed ${processedMessages.length} messages`);
         
         for (const processedMessage of processedMessages) {
             switch (processedMessage.messageType) {
@@ -121,7 +115,7 @@ export class ClientWrapper {
                     this.handleKeyRequestFailure(processedMessage);
                     break;
                 default:
-                    info(`⚠️ Unknown message type received`);
+                    logger.debug(`Unknown message type received`);
             }
         }
     }
@@ -130,7 +124,6 @@ export class ClientWrapper {
      * Handles a received text message.
      */
     private handleTextMessage(processedMessage: Message) {
-        info(`📨 Message content: ${processedMessage.message}`);
         this.eventEmitter.emit("message", {
             sender: processedMessage.sender.name(),
             message: processedMessage.message,
@@ -142,8 +135,9 @@ export class ClientWrapper {
         const receivedTime = Date.now();
         const sender = processedMessage.sender.name();
         const messageSize = Buffer.byteLength(parsedData.message);
-
-        console.log(`📩 [${msg_id}] ${sender} → ${this.clientId} (Size: ${messageSize} bytes)`);
+        
+        logger.info(`Received text message [${sender} → ${this.clientId}]`);
+        logger.debug(`Received text message [${sender} → ${this.clientId}]: "${processedMessage.message}" (Size: ${messageSize} bytes)`);
 
         this.messageLog.push({
             msg_id: msg_id,
@@ -161,9 +155,9 @@ export class ClientWrapper {
     private async handleKeyResponse(processedMessage: Message) {
         const receivedAddress = Util.signalAddressToString(processedMessage.sender);
         this.regularKeys.set(receivedAddress, Constants.KEY_STATE_RECEIVED);
-        info(`🔑 Key received for user: ${receivedAddress}`);
+        logger.info(`Received regular key [${receivedAddress} → ${this.clientId}]`);
 
-        // 🔹 Send queued messages
+        // Send queued messages
         this.sendQueuedMessages(receivedAddress);
     }
 
@@ -172,7 +166,7 @@ export class ClientWrapper {
      */
     private handleKeyRequestFailure(processedMessage: Message) {
         const senderAddress = Util.signalAddressToString(processedMessage.sender);
-        info(`❌ Key request failed for ${senderAddress}. Retrying...`);
+        logger.warn(`Key request failed for ${senderAddress}. Retrying...`);
 
         const keyRequest = this.denimClient.createKeyRequest(processedMessage.sender);
         this.sendFunction(keyRequest);
@@ -198,7 +192,7 @@ export class ClientWrapper {
             size_bytes: messageSize,
         });
 
-        console.log(`📤 [${msg_id}] ${this.clientId} → ${recipientId} (Size: ${messageSize} bytes)`);
+        logger.debug(`Sending message [${this.clientId} → ${recipientId}]: "${message}" (Size: ${messageSize} bytes)`);
 
         // Instead of sending raw message, send a JSON object with metadata
         const messageObject = {
@@ -212,18 +206,18 @@ export class ClientWrapper {
 
         if (!recipientKeyStatus) {
             // First-time messaging: request a key and queue the message
-            info(`🕒 No key for ${recipientId}. Requesting...`);
+            logger.debug(`No key for ${recipientId}. Requesting...`);
             this.queueMessage(msg);
             const keyRequest = this.denimClient.createKeyRequest(msg.receiver);
             this.sendFunction(keyRequest);
         } else if (recipientKeyStatus === Constants.KEY_STATE_RECEIVED) {
             // Key is available, send message immediately
-            info(`📤 Sending message to ${recipientId}`);
+            logger.debug(`Sending message to ${recipientId}`);
             const denimMsg = await this.denimClient.createRegularMessage(msg.message, msg.receiver);
             this.sendFunction(denimMsg);
         } else {
             // Key is still in-flight, queue message
-            info(`🕒 Waiting for key to be received for ${recipientId}`);
+            logger.debug(`Waiting for key to be received for ${recipientId}`);
             this.queuedRegularMessages.push(msg);
         }
     }
@@ -243,7 +237,7 @@ export class ClientWrapper {
         const toSend = this.queuedRegularMessages.filter(msg => Util.signalAddressToString(msg.receiver) === recipientAddress);
         
         for (const msg of toSend) {
-            info(`📤 Sending queued message: ${msg.message}`);
+            logger.debug(`Sending queued message: ${msg.message}`);
             const denimMsg = await this.denimClient.createRegularMessage(msg.message, msg.receiver);
             this.sendFunction(denimMsg);
         }
@@ -274,6 +268,6 @@ export class ClientWrapper {
 
     private saveMessageLog() {
         fs.writeFileSync(this.logFilePath, JSON.stringify(this.messageLog, null, 2));
-        console.log(`💾 Saved message log for client ${this.clientId}`);
+        logger.debug(`Saved message log for client ${this.clientId}`);
     }
 }

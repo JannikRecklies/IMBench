@@ -6,10 +6,7 @@ const https = require('https');
 import yargs from "yargs";
 
 const logLevel = yargs.argv.debugserver ? 'debug' : 'info';
-const logger = require('../helper/Logger').getLogger("WSServer",logLevel);
-const info = x => logger.info(x)
-const debug = x => logger.debug(x)
-const error = x => logger.error(x);
+const logger = require('../helper/Logger').getLogger("WebsocketServer",logLevel);
 
 const q = yargs.argv.q != undefined ? yargs.argv.q : Constants.DEFAULT_Q;
 
@@ -22,15 +19,15 @@ let server = https.createServer(
     , cert:fs.readFileSync('ssl-cert/cert.pem')
     }
   , function(request, response) {
-      info((new Date()) + ' Received request for ' + request.url);
+      logger.info((new Date()) + ' Received request for ' + request.url);
       response.writeHead(404);
       response.end();
   });
 
 server.listen(8080, function() {
-    info((new Date()) + ' Server is listening on port 8080');
-    info("Statistics will be printed and saved upon ctrl-c before exiting");
-    info(`q is ${q}`);
+    logger.info((new Date()) + ' Server is listening on port 8080');
+    logger.info("Statistics will be printed and saved upon ctrl-c before exiting");
+    logger.info(`q is ${q}`);
 });
 
 let wsServer = new WebSocketServer({
@@ -50,24 +47,24 @@ function originIsAllowed(origin) {
 
 wsServer.on('request',(request) => {
     if (!originIsAllowed(request.origin)) {
-      // Make sure we only accept requests from an allowed origin
-      request.reject();
-      debug((new Date()) + ' Connection from origin ' + request.origin + ' rejected.');
-      return;
+        // Make sure we only accept requests from an allowed origin
+        request.reject();
+        logger.debug((new Date()) + ' Connection from origin ' + request.origin + ' rejected.');
+        return;
     }
     
     let connection = request.accept(Constants.PROTOCOL, request.origin);
-    debug((new Date()) + ' Connection accepted.');
+    logger.info((new Date()) + ' Connection accepted.');
     connection.on('message', (message) => {
         if (message.type === 'utf8') {
             let content = message.utf8Data;
 
-            info('New connection with: ' + content);
+            logger.info('New connection with: ' + content);
             connectionToAddress.set(connection, content);
             addressToConnection.set(content, connection);
         }
         else if (message.type === 'binary') {
-            debug('Received message of ' + message.binaryData.length + ' bytes');
+            logger.debug('Received message of ' + message.binaryData.length + ' bytes');
             const sender = connectionToAddress.get(connection);
             const response = denimServer.process(sender, message.binaryData);
             // Reply/forward
@@ -75,7 +72,7 @@ wsServer.on('request',(request) => {
                 const respondTo = addressToConnection.get(response.receiver);
                 respondTo.sendBytes(response.msg);
             } else {
-                debug(`DenimServer's process() returned null`);
+                logger.debug(`DenimServer's process() returned null`);
             }
 
             // Process potentially deniable part *after* handling regular part
@@ -83,6 +80,6 @@ wsServer.on('request',(request) => {
         }
     });
     connection.on('close',(reasonCode, description) => {
-        debug((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
+        logger.info((new Date()) + ' Peer ' + connection.remoteAddress + ' disconnected.');
     });
 });
