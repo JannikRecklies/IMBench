@@ -1,0 +1,15 @@
+messages = from(bucket: "imbench")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r._measurement == "message_sent")
+  |> group(columns: ["_field"])
+  |> aggregateWindow(every: 2m, fn: count, createEmpty: false)  // Counts all messages per minute
+  |> map(fn: (r) => ({ _time: r._time, _field: "messages_per_min", _value: r._value }))
+
+latency = from(bucket: "imbench")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r._measurement == "message_revceived")
+  |> filter(fn: (r) => r._field == "latency_ms")
+  |> aggregateWindow(every: 2m, fn: mean, createEmpty: false)  // Averages latency per minute
+  |> map(fn: (r) => ({ _time: r._time, _field: "avg_latency_ms", _value: r._value }))
+
+union(tables: [messages, latency])

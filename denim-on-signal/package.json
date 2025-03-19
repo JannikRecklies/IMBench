@@ -8,6 +8,7 @@
     "proto": "pbjs --es6 -t static-module -w es6 src/proto/*.proto -o src/proto-generated/compiled.js;pbts --copy-imports --no-comments -o src/proto-generated/compiled.d.ts src/proto-generated/compiled.js"
   },
   "dependencies": {
+    "@influxdata/influxdb-client": "1.35.0",
     "@signalapp/libsignal-client": "^0.15.0",
     "fast-check": "^2.25.0",
     "fastq": "^1.13.0",
@@ -23,6 +24,7 @@
     "relative-microtime": "^2.0.0",
     "websocket": "^1.0.34",
     "winston": "^3.6.0",
+    "ws": "^8.18.1",
     "yargs": "^17.4.1"
   },
   "devDependencies": {
