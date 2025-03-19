@@ -9,12 +9,12 @@ import EventEmitter from 'events';
 import fs from 'fs';
 import { InfluxDB, Point } from "@influxdata/influxdb-client";
 
+const logger = require('../helper/Logger').getLogger("ClientWrapper", Constants.LOGLEVEL);
+
 const INFLUX_URL = "http://localhost:8086"
 const INFLUX_TOKEN = "uZa-erdN8bdeXUFO5e08zq2EjkX3vyW5R-Vu9SdlEFS94mJOsWSDuktlGpyCZgZ2E3ix5mzS74cmqiJKPoEKmg=="
 const INFLUX_ORG = "imbench"; // Your organization name
 const INFLUX_BUCKET = "imbench"; // Your bucket name
-
-const logger = require('../helper/Logger').getLogger("ClientWrapper", Constants.LOGLEVEL);
 
 const influx = new InfluxDB({ url: INFLUX_URL, token: INFLUX_TOKEN });
 const writeApi = influx.getWriteApi(INFLUX_ORG, INFLUX_BUCKET);

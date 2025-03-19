@@ -48,16 +48,6 @@ clientsManagerServer.on('connection', (ws) => {
         }
     });
 
-    ws.on('pong', () => {
-        logger.info("🏓 Pong received");
-        ws.isAlive = true;
-    });
-    
-    ws.on('ping', () => {
-        logger.info("🏓 Ping received");
-        ws.isAlive = true;
-    });
-
     ws.on("close", () => {
         logger.info("❌ Python WebSocket disconnected.");
         connections.delete(ws);
