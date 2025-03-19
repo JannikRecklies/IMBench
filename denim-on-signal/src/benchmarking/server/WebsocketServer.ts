@@ -1,5 +1,5 @@
-import { DenimServer as DenimServer } from '../core/DenimServer';
-import Constants = require('../helper/Constants');
+import { DenimServer as DenimServer } from '../../core/DenimServer';
+import Constants = require('../../helper/Constants');
 const fs = require('fs')
 const WebSocketServer = require('websocket').server;
 const https = require('https');
@@ -8,12 +8,12 @@ import os from 'os';
 import { InfluxDB, Point } from '@influxdata/influxdb-client';
 
 const logLevel = yargs.argv.debugserver ? 'debug' : 'info';
-const logger = require('../helper/Logger').getLogger("WebsocketServer",logLevel);
+const logger = require('../../helper/Logger').getLogger("WebsocketServer",logLevel);
 
-const INFLUX_URL = "http://localhost:8086"
-const INFLUX_TOKEN = "uZa-erdN8bdeXUFO5e08zq2EjkX3vyW5R-Vu9SdlEFS94mJOsWSDuktlGpyCZgZ2E3ix5mzS74cmqiJKPoEKmg=="
-const INFLUX_ORG = "imbench"; // Your organization name
-const INFLUX_BUCKET = "imbench"; // Your bucket name
+const INFLUX_URL = process.env.INFLUX_URL || "http://localhost:8086";
+const INFLUX_TOKEN = process.env.INFLUX_TOKEN || "your-default-token";
+const INFLUX_ORG = process.env.INFLUX_ORG || "imbench";
+const INFLUX_BUCKET = process.env.INFLUX_BUCKET || "imbench";
 
 const influx = new InfluxDB({ url: INFLUX_URL, token: INFLUX_TOKEN });
 const writeApi = influx.getWriteApi(INFLUX_ORG, INFLUX_BUCKET);

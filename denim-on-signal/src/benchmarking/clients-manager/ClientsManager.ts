@@ -1,7 +1,7 @@
-import Constants = require('../helper/Constants');
+import Constants = require('../../helper/Constants');
 import { ClientWrapper } from './ClientWrapper';
 
-const logger = require('../helper/Logger').getLogger("ClientManager", Constants.LOGLEVEL);
+const logger = require('../../helper/Logger').getLogger("ClientManager", Constants.LOGLEVEL);
 import WebSocket, { WebSocketServer } from 'ws';
 import http from 'http';
 
@@ -13,7 +13,8 @@ server.listen(8081, () => logger.info("WebSocket server running on port 8081"));
 
 const clientsManagerServer = new WebSocketServer({ server });
 
-const denimServerAddress: string = "wss://127.0.0.1:8080";
+const DENIM_SERVER_URL: string = process.env.INFLUX_URL || "wss://host.docker.internal:8080";
+
 const clients: { [key: string]: ClientWrapper } = {};
 const connections: Set<WebSocket> = new Set();
 
@@ -27,7 +28,7 @@ clientsManagerServer.on('connection', (ws) => {
         const { command, clientId, recipientId, text, delay } = JSON.parse(message.toString());
 
         if (command === "register") {
-            clients[clientId] = new ClientWrapper(clientId, undefined, denimServerAddress);
+            clients[clientId] = new ClientWrapper(clientId, undefined, DENIM_SERVER_URL);
             await clients[clientId].initialize();
 
             clients[clientId].on("message", (data) => {
