@@ -2,8 +2,8 @@ import Constants = require('../helper/Constants');
 import { ClientWrapper } from './ClientWrapper';
 
 const logger = require('../helper/Logger').getLogger("ClientManager", Constants.LOGLEVEL);
-const WebSocketServer = require('websocket').server;
-const http = require('http');
+import WebSocket, { WebSocketServer } from 'ws';
+import http from 'http';
 
 const server = http.createServer((req, res) => {
     res.writeHead(404);
@@ -11,28 +11,25 @@ const server = http.createServer((req, res) => {
 });
 server.listen(8081, () => logger.info("WebSocket server running on port 8081"));
 
-const clientsManagerServer = new WebSocketServer({
-    httpServer: server,
-    autoAcceptConnections: false
-});
+const clientsManagerServer = new WebSocketServer({ server });
 
 const denimServerAddress: string = "wss://127.0.0.1:8080";
 const clients: { [key: string]: ClientWrapper } = {};
-const connections: any[] = [];
+const connections: Set<WebSocket> = new Set();
 
-clientsManagerServer.on('request', (request) => {
-    const connection = request.accept(null, request.origin);
-    logger.info("Python connected to control simulation.");
-    connections.push(connection);
+// Handle WebSocket connections
+clientsManagerServer.on('connection', (ws) => {
+    logger.info("✅ Python connected to control simulation.");
+    connections.add(ws);
 
-    connection.on('message', async (message) => {
-        const { command, clientId, recipientId, text, delay } = JSON.parse(message.utf8Data);
+    // Handle incoming messages
+    ws.on('message', async (message) => {
+        const { command, clientId, recipientId, text, delay } = JSON.parse(message.toString());
 
         if (command === "register") {
             clients[clientId] = new ClientWrapper(clientId, undefined, denimServerAddress);
             await clients[clientId].initialize();
 
-            // Notify Python when this client receives a message
             clients[clientId].on("message", (data) => {
                 logger.debug(`📩 Client ${clientId} received message: ${data.message}`);
                 broadcastMessage({
@@ -43,8 +40,7 @@ clientsManagerServer.on('request', (request) => {
                     timestamp: Date.now()
                 });
             });
-        } 
-        else if (command === "send") {
+        } else if (command === "send") {
             setTimeout(() => {
                 logger.debug(`Send message request [${clientId} → ${recipientId}]: ${text}`);
                 clients[clientId]?.sendMessage(text, recipientId);
@@ -52,17 +48,16 @@ clientsManagerServer.on('request', (request) => {
         }
     });
 
-    connection.on('close', () => {
-        logger.info("Python WebSocket disconnected.");
-        const index = connections.indexOf(connection);
-        if (index > -1) connections.splice(index, 1);
+    ws.on("close", () => {
+        logger.info("❌ Python WebSocket disconnected.");
+        connections.delete(ws);
     });
 });
-
+    
 /**
- * Sends a message to all connected clients (Python scripts).
+ * Sends a message to all connected Python clients.
  */
 function broadcastMessage(data: object) {
     const jsonData = JSON.stringify(data);
-    connections.forEach(conn => conn.sendUTF(jsonData));
+    connections.forEach((ws) => ws.send(jsonData));
 }

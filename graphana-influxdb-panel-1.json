@@ -1,0 +1,129 @@
+{
+    "id": 1,
+    "type": "timeseries",
+    "title": "Panel Title",
+    "gridPos": {
+      "x": 0,
+      "y": 0,
+      "h": 8,
+      "w": 12
+    },
+    "fieldConfig": {
+      "defaults": {
+        "custom": {
+          "drawStyle": "line",
+          "lineInterpolation": "smooth",
+          "barAlignment": 0,
+          "barWidthFactor": 0.6,
+          "lineWidth": 1,
+          "fillOpacity": 0,
+          "gradientMode": "none",
+          "spanNulls": false,
+          "insertNulls": false,
+          "showPoints": "auto",
+          "pointSize": 5,
+          "stacking": {
+            "mode": "none",
+            "group": "A"
+          },
+          "axisPlacement": "auto",
+          "axisLabel": "",
+          "axisColorMode": "text",
+          "axisBorderShow": false,
+          "scaleDistribution": {
+            "type": "linear"
+          },
+          "axisCenteredZero": false,
+          "hideFrom": {
+            "tooltip": false,
+            "viz": false,
+            "legend": false
+          },
+          "thresholdsStyle": {
+            "mode": "off"
+          }
+        },
+        "color": {
+          "mode": "palette-classic"
+        },
+        "mappings": [],
+        "thresholds": {
+          "mode": "absolute",
+          "steps": [
+            {
+              "color": "green",
+              "value": null
+            },
+            {
+              "color": "red",
+              "value": 80
+            }
+          ]
+        }
+      },
+      "overrides": [
+        {
+          "matcher": {
+            "id": "byName",
+            "options": "avg_latency_ms"
+          },
+          "properties": [
+            {
+              "id": "custom.axisPlacement",
+              "value": "right"
+            }
+          ]
+        }
+      ]
+    },
+    "pluginVersion": "11.5.2",
+    "targets": [
+      {
+        "datasource": {
+          "type": "influxdb",
+          "uid": "deg7oagpbjo5ca"
+        },
+        "query": "from(bucket: \"imbench\")\n  |> range(start: -1h)  // Change time range as needed\n  |> filter(fn: (r) => r._measurement == \"message_revceived\")\n  |> filter(fn: (r) => r._field == \"latency_ms\")\n  |> group() // Group by sender & receiver\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false) // Aggregate per minute\n",
+        "refId": "Latency-per-min",
+        "hide": true
+      },
+      {
+        "datasource": {
+          "uid": "deg7oagpbjo5ca",
+          "type": "influxdb"
+        },
+        "refId": "messages-per-min",
+        "hide": true,
+        "query": "from(bucket: \"imbench\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"message_sent\")\n  |> group() // Group by sender & receiver\n  |> aggregateWindow(every: 1m, fn: count, createEmpty: false)  // Count per minute"
+      },
+      {
+        "datasource": {
+          "uid": "deg7oagpbjo5ca",
+          "type": "influxdb"
+        },
+        "refId": "A",
+        "hide": false,
+        "query": "messages = from(bucket: \"imbench\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"message_sent\")\n  |> group(columns: [\"_field\"])\n  |> aggregateWindow(every: 2m, fn: count, createEmpty: false)  // Counts all messages per minute\n  |> map(fn: (r) => ({ _time: r._time, _field: \"messages_per_min\", _value: r._value }))\n\nlatency = from(bucket: \"imbench\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"message_revceived\")\n  |> filter(fn: (r) => r._field == \"latency_ms\")\n  |> aggregateWindow(every: 2m, fn: mean, createEmpty: false)  // Averages latency per minute\n  |> map(fn: (r) => ({ _time: r._time, _field: \"avg_latency_ms\", _value: r._value }))\n\nunion(tables: [messages, latency])"
+      }
+    ],
+    "datasource": {
+      "type": "influxdb",
+      "uid": "deg7oagpbjo5ca"
+    },
+    "options": {
+      "tooltip": {
+        "mode": "single",
+        "sort": "none",
+        "hideZeros": false
+      },
+      "legend": {
+        "showLegend": true,
+        "displayMode": "list",
+        "placement": "bottom",
+        "calcs": []
+      },
+      "timezone": [
+        ""
+      ]
+    }
+}

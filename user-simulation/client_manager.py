@@ -26,7 +26,7 @@ async def send_message(ws, sender, recipient, text):
         "recipientId": recipient,
         "text": text
     }))
-    print(f"📤 {sender} → {recipient}: {text}")
+    # print(f"📤 {sender} → {recipient}: {text}")
 
 async def handle_message(ws, message):
     """Handles incoming messages and schedules responses."""
@@ -38,14 +38,14 @@ async def handle_message(ws, message):
         received_message = data["message"]
         client = clients[receiver]
 
-        print(f"📩 {receiver} received from {sender}: {received_message}")
+        # print(f"📩 {receiver} received from {sender}: {received_message}")
 
         if client.get_message_end_probability():
-            print(f"🛑 {receiver} is ending conversation.")
+            print(f"🛑 {receiver} is ending conversation with {sender}.")
             return  # Stop responding
 
         delay = client.get_response_delay()
-        print(f"⏳ {receiver} will respond in {delay:.2f}s")
+        # print(f"⏳ {receiver} will respond in {delay:.2f}s")
         await asyncio.sleep(delay)
 
         await send_message(ws, receiver, sender, f"Reply from {receiver}")
@@ -62,13 +62,14 @@ async def simulate_behavior(ws):
 
 async def websocket_client():
     """Main WebSocket loop."""
-    async with websockets.connect(WEBSOCKET_URI) as ws:
+    async with websockets.connect(WEBSOCKET_URI, ping_interval=None) as ws:
         print("✅ Connected to TypeScript WebSocket server.")
-
         await register_clients(ws)  # Register clients
+        
         asyncio.create_task(simulate_behavior(ws))  # Start behavior simulation
 
         async for message in ws:
             await handle_message(ws, message)
+
 
 asyncio.run(websocket_client())

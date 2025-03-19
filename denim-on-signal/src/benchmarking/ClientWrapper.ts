@@ -7,8 +7,17 @@ import { Message } from '../core/Message';
 import { client as WebSocketClient } from 'websocket';
 import EventEmitter from 'events';
 import fs from 'fs';
+import { InfluxDB, Point } from "@influxdata/influxdb-client";
 
 const logger = require('../helper/Logger').getLogger("ClientWrapper", Constants.LOGLEVEL);
+
+const INFLUX_URL = "http://localhost:8086"
+const INFLUX_TOKEN = "uZa-erdN8bdeXUFO5e08zq2EjkX3vyW5R-Vu9SdlEFS94mJOsWSDuktlGpyCZgZ2E3ix5mzS74cmqiJKPoEKmg=="
+const INFLUX_ORG = "imbench"; // Your organization name
+const INFLUX_BUCKET = "imbench"; // Your bucket name
+
+const influx = new InfluxDB({ url: INFLUX_URL, token: INFLUX_TOKEN });
+const writeApi = influx.getWriteApi(INFLUX_ORG, INFLUX_BUCKET);
 
 export class ClientWrapper {
     private clientId: string;
@@ -21,8 +30,6 @@ export class ClientWrapper {
     private serverConnections = new Map<string, any>();
     private regularKeys = new Map<string, string>(); // Stores key statuses
     private queuedRegularMessages: Array<Message> = []; // Messages waiting for keys
-    private messageLog = [];
-    private logFilePath: string;
 
     constructor(clientId: string, deviceId = Constants.DEFAULT_DEVICE_ID, serverAddress: string) {
         this.clientId = clientId;
@@ -30,15 +37,6 @@ export class ClientWrapper {
         this.serverAddress = serverAddress;
         this.clientSignalAddress = SignalLib.ProtocolAddress.new(clientId, deviceId);
         this.eventEmitter = new EventEmitter();
-        this.logFilePath = `./logs/client_${clientId}_messages.json`;
-
-        // Ensure log directory exists
-        if (!fs.existsSync('./logs')) {
-            fs.mkdirSync('./logs');
-        }
-
-        // Periodically save logs every 10 seconds
-        setInterval(() => this.saveMessageLog(), 10000);
     }
 
     /**
@@ -124,28 +122,22 @@ export class ClientWrapper {
      * Handles a received text message.
      */
     private handleTextMessage(processedMessage: Message) {
-        this.eventEmitter.emit("message", {
-            sender: processedMessage.sender.name(),
-            message: processedMessage.message,
-        });
-        //////////////
         const parsedData = JSON.parse(processedMessage.message); // Extract structured message
         const msg_id = parsedData.msg_id; // Extract msg_id from metadata
         const sentTime = parseInt(msg_id.split("-")[0]); // Extract timestamp from msg_id
-        const receivedTime = Date.now();
+        const latency = Date.now() - Number(sentTime);
         const sender = processedMessage.sender.name();
         const messageSize = Buffer.byteLength(parsedData.message);
         
-        logger.info(`Received text message [${sender} → ${this.clientId}]`);
+        // Store sent message metadata
+        this.logMessageReceived(msg_id, sender, this.clientId, messageSize, latency);
+        
+        logger.info(`Received text message [${sender} → ${this.clientId}] (Latency: ${latency}ms)`);
         logger.debug(`Received text message [${sender} → ${this.clientId}]: "${processedMessage.message}" (Size: ${messageSize} bytes)`);
-
-        this.messageLog.push({
-            msg_id: msg_id,
-            sender_id: sender,
-            receiver_id: this.clientId,
-            time_sent: sentTime,
-            time_received: receivedTime,
-            size_bytes: messageSize,
+        
+        this.eventEmitter.emit("message", {
+            sender: processedMessage.sender.name(),
+            message: processedMessage.message,
         });
     }
 
@@ -183,14 +175,7 @@ export class ClientWrapper {
         const messageSize = Buffer.byteLength(message);
 
         // Store sent message metadata
-        this.messageLog.push({
-            msg_id: msg_id,
-            sender_id: this.clientId,
-            receiver_id: recipientId,
-            time_sent: timeSent,
-            time_received: null,
-            size_bytes: messageSize,
-        });
+        this.logMessageSent(msg_id, this.clientId, recipientId, messageSize, timeSent);
 
         logger.debug(`Sending message [${this.clientId} → ${recipientId}]: "${message}" (Size: ${messageSize} bytes)`);
 
@@ -259,15 +244,24 @@ export class ClientWrapper {
         return `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
     }
 
-    /**
-     * Retrieve stored messages for analysis.
-     */
-    getMessageLog() {
-        return this.messageLog;
+    private logMessageSent(msg_id: string, sender: string, receiver: string, msg_size: number, time_sent: number) {
+        const point = new Point("message_sent")
+            .tag("msg_id", msg_id)
+            .tag("sender", sender)
+            .tag("receiver", receiver)
+            .intField("msg_size", msg_size)
+            .intField("time_sent", time_sent);
+        writeApi.writePoint(point);
     }
 
-    private saveMessageLog() {
-        fs.writeFileSync(this.logFilePath, JSON.stringify(this.messageLog, null, 2));
-        logger.debug(`Saved message log for client ${this.clientId}`);
+    private logMessageReceived(msg_id: string, sender: string, receiver: string, msg_size: number, latency: number) {
+        const point = new Point("message_revceived")
+            .tag("msg_id", msg_id)
+            .tag("sender", sender)
+            .tag("receiver", receiver)
+            .intField("msg_size", msg_size)
+            .intField("latency_ms", latency);
+        writeApi.writePoint(point);
     }
+
 }
