@@ -25,27 +25,25 @@ clientsManagerServer.on('connection', (ws) => {
 
     // Handle incoming messages
     ws.on('message', async (message) => {
-        const { command, clientId, recipientId, text, delay } = JSON.parse(message.toString());
+        const { command, clientId, recipientId, message_content } = JSON.parse(message.toString());
 
         if (command === "register") {
             clients[clientId] = new ClientWrapper(String(clientId), undefined, DENIM_SERVER_URL);
             await clients[clientId].initialize();
 
             clients[clientId].on("message", (data) => {
-                logger.debug(`📩 Client ${clientId} received message: ${data.message}`);
+                logger.info(`📩 Client ${clientId} received message: ${data.message}`);
                 broadcastMessage({
                     event: "message_received",
                     clientId: clientId,
                     sender: data.sender,
-                    message: data.message,
+                    message_content: data.message,
                     timestamp: Date.now()
                 });
             });
         } else if (command === "send") {
-            setTimeout(() => {
-                logger.debug(`Send message request [${clientId} → ${recipientId}]: ${text}`);
-                clients[clientId]?.sendMessage(String(text), String(recipientId));
-            }, delay);
+            logger.debug(`Send message request [${clientId} → ${recipientId}]: ${message_content}`);
+            clients[clientId]?.sendMessage(String(message_content), String(recipientId));
         }
     });
 

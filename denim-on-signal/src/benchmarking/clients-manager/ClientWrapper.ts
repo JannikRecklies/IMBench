@@ -121,17 +121,15 @@ export class ClientWrapper {
      * Handles a received text message.
      */
     private handleTextMessage(processedMessage: Message) {
-        const parsedData = JSON.parse(processedMessage.message); // Extract structured message
-        const msg_id = parsedData.msg_id; // Extract msg_id from metadata
-        const sentTime = parseInt(msg_id.split("-")[0]); // Extract timestamp from msg_id
-        const latency = Date.now() - Number(sentTime);
+        const time_received = Date.now();
         const sender = processedMessage.sender.name();
-        const messageSize = Buffer.byteLength(parsedData.message);
+        const parsedData = JSON.parse(processedMessage.message); // Extract structured message
+        const msgId = parsedData.msgId; // Extract msgId from metadata
+        const messageSize = Buffer.byteLength(processedMessage.message);
         
         // Store sent message metadata
-        this.logMessageReceived(msg_id, sender, this.clientId, messageSize, latency);
+        this.logMessageReceived(msgId, sender, this.clientId, messageSize, time_received);
         
-        logger.info(`Received text message [${sender} → ${this.clientId}] (Latency: ${latency}ms)`);
         logger.debug(`Received text message [${sender} → ${this.clientId}]: "${processedMessage.message}" (Size: ${messageSize} bytes)`);
         
         this.eventEmitter.emit("message", {
@@ -169,22 +167,20 @@ export class ClientWrapper {
     async sendMessage(message: string, recipientId: string) {
         const recipientSignalAddress = SignalLib.ProtocolAddress.new(recipientId, Constants.DEFAULT_DEVICE_ID);
 
+        logger.debug(`Sending message [${this.clientId} → ${recipientId}]: "${message}"`);
+
+        // Parse the message to extract msg_id
+        const parsedMessage = JSON.parse(message);
+        const msgId = parsedMessage.message_id;
+
         const timeSent = Date.now();
-        const msg_id = this.generateMessageId();
         const messageSize = Buffer.byteLength(message);
 
         // Store sent message metadata
-        this.logMessageSent(msg_id, this.clientId, recipientId, messageSize, timeSent);
+        this.logMessageSent(msgId, this.clientId, recipientId, messageSize, timeSent);
 
-        logger.debug(`Sending message [${this.clientId} → ${recipientId}]: "${message}" (Size: ${messageSize} bytes)`);
 
-        // Instead of sending raw message, send a JSON object with metadata
-        const messageObject = {
-            msg_id: msg_id, // Attach msg_id to the message metadata
-            message: message,
-        };
-
-        const msg = new Message(JSON.stringify(messageObject), this.denimClient.address, recipientSignalAddress, false, Constants.MESSAGE_TYPE_TEXT);
+        const msg = new Message(message, this.denimClient.address, recipientSignalAddress, false, Constants.MESSAGE_TYPE_TEXT);
         
         const recipientKeyStatus = this.regularKeys.get(Util.signalAddressToString(recipientSignalAddress));
 
@@ -243,24 +239,34 @@ export class ClientWrapper {
         return `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
     }
 
-    private logMessageSent(msg_id: string, sender: string, receiver: string, msg_size: number, time_sent: number) {
+    private logMessageSent(msgId: string, sender: string, receiver: string, msg_size: number, time_sent: number) {
         const point = new Point("message_sent")
-            .tag("msg_id", msg_id)
+            .tag("msgId", msgId)
             .tag("sender", sender)
             .tag("receiver", receiver)
             .intField("msg_size", msg_size)
             .intField("time_sent", time_sent);
         writeApi.writePoint(point);
+        writeApi.flush().then(() => {
+            logger.debug(`✅ Successfully logged message ${msgId}`);
+        }).catch((err) => {
+            logger.error(`❌ Error logging message ${msgId}:`, err);
+        });
     }
 
-    private logMessageReceived(msg_id: string, sender: string, receiver: string, msg_size: number, latency: number) {
+    private logMessageReceived(msgId: string, sender: string, receiver: string, msg_size: number, time_received: number) {
         const point = new Point("message_revceived")
-            .tag("msg_id", msg_id)
+            .tag("msgId", msgId)
             .tag("sender", sender)
             .tag("receiver", receiver)
             .intField("msg_size", msg_size)
-            .intField("latency_ms", latency);
+            .intField("time_received", time_received);
         writeApi.writePoint(point);
+        writeApi.flush().then(() => {
+            logger.debug(`✅ Successfully logged message ${msgId}`);
+        }).catch((err) => {
+            logger.error(`❌ Error logging message ${msgId}:`, err);
+        });
     }
 
 }

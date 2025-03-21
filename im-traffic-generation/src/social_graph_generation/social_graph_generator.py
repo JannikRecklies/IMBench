@@ -64,10 +64,10 @@ def assign_edge_weights(graph, alpha=1, lognorm_mu=0, lognorm_sigma=0.5, random_
 
         weights.append(weight)
 
-    # Normalize weights to range [0,1]
+    # Normalize weights to range [0.01, 0.99]
     min_weight, max_weight = min(weights), max(weights)
-    normalized_weights = [(w - min_weight) / (max_weight - min_weight) for w in weights]
-
+    normalized_weights = [0.01 + (w - min_weight) * (0.99 - 0.01) / (max_weight - min_weight) for w in weights]
+        
     # Assign normalized weights back to the graph
     for (u, v), weight in zip(graph.edges(), normalized_weights):
         graph[u][v]['weight'] = round(weight, 2)
