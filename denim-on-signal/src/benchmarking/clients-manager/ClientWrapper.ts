@@ -124,13 +124,13 @@ export class ClientWrapper {
         const time_received = Date.now();
         const sender = processedMessage.sender.name();
         const parsedData = JSON.parse(processedMessage.message); // Extract structured message
-        const msgId = parsedData.msgId; // Extract msgId from metadata
+        const msgId = parsedData.message_id; // Extract msgId from metadata
         const messageSize = Buffer.byteLength(processedMessage.message);
         
         // Store sent message metadata
         this.logMessageReceived(msgId, sender, this.clientId, messageSize, time_received);
         
-        logger.debug(`Received text message [${sender} → ${this.clientId}]: "${processedMessage.message}" (Size: ${messageSize} bytes)`);
+        logger.debug(`Received text message [${sender} → ${this.clientId}]: "${processedMessage.message}" (MsgId: ${msgId})`);
         
         this.eventEmitter.emit("message", {
             sender: processedMessage.sender.name(),
@@ -240,7 +240,7 @@ export class ClientWrapper {
     }
 
     private logMessageSent(msgId: string, sender: string, receiver: string, msg_size: number, time_sent: number) {
-        const point = new Point("message_sent")
+        const point = new Point("message")
             .tag("msgId", msgId)
             .tag("sender", sender)
             .tag("receiver", receiver)
@@ -248,24 +248,24 @@ export class ClientWrapper {
             .intField("time_sent", time_sent);
         writeApi.writePoint(point);
         writeApi.flush().then(() => {
-            logger.debug(`✅ Successfully logged message ${msgId}`);
+            logger.debug(`✅ Successfully logged sent message ${msgId}`);
         }).catch((err) => {
-            logger.error(`❌ Error logging message ${msgId}:`, err);
+            logger.error(`❌ Error logging sent message ${msgId}:`, err);
         });
     }
 
     private logMessageReceived(msgId: string, sender: string, receiver: string, msg_size: number, time_received: number) {
-        const point = new Point("message_revceived")
+        const point = new Point("message")
             .tag("msgId", msgId)
             .tag("sender", sender)
             .tag("receiver", receiver)
             .intField("msg_size", msg_size)
-            .intField("time_received", time_received);
+            .intField("time_received", time_received);  // Just add the received time to the existing point
         writeApi.writePoint(point);
         writeApi.flush().then(() => {
-            logger.debug(`✅ Successfully logged message ${msgId}`);
+            logger.debug(`✅ Successfully logged received message ${msgId}`);
         }).catch((err) => {
-            logger.error(`❌ Error logging message ${msgId}:`, err);
+            logger.error(`❌ Error logging received message ${msgId}:`, err);
         });
     }
 

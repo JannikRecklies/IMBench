@@ -1,349 +1,376 @@
 {
-    "annotations": {
-      "list": [
-        {
-          "builtIn": 1,
-          "datasource": {
-            "type": "grafana",
-            "uid": "-- Grafana --"
-          },
-          "enable": true,
-          "hide": true,
-          "iconColor": "rgba(0, 211, 255, 1)",
-          "name": "Annotations & Alerts",
-          "type": "dashboard"
-        }
-      ]
-    },
-    "editable": true,
-    "fiscalYearStartMonth": 0,
-    "graphTooltip": 0,
-    "id": 1,
-    "links": [],
-    "panels": [
+  "annotations": {
+    "list": [
       {
+        "builtIn": 1,
         "datasource": {
-          "type": "influxdb",
-          "uid": "deg7oagpbjo5ca"
+          "type": "grafana",
+          "uid": "-- Grafana --"
         },
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "axisBorderShow": false,
-              "axisCenteredZero": false,
-              "axisColorMode": "text",
-              "axisLabel": "",
-              "axisPlacement": "auto",
-              "barAlignment": 0,
-              "barWidthFactor": 0.6,
-              "drawStyle": "bars",
-              "fillOpacity": 0,
-              "gradientMode": "none",
-              "hideFrom": {
-                "legend": false,
-                "tooltip": false,
-                "viz": false
-              },
-              "insertNulls": false,
-              "lineInterpolation": "linear",
-              "lineWidth": 1,
-              "pointSize": 5,
-              "scaleDistribution": {
-                "type": "linear"
-              },
-              "showPoints": "auto",
-              "spanNulls": false,
-              "stacking": {
-                "group": "A",
-                "mode": "none"
-              },
-              "thresholdsStyle": {
-                "mode": "off"
-              }
-            },
-            "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green",
-                  "value": null
-                },
-                {
-                  "color": "red",
-                  "value": 80
-                }
-              ]
-            }
-          },
-          "overrides": []
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 0,
-          "y": 0
-        },
-        "id": 3,
-        "options": {
-          "legend": {
-            "calcs": [],
-            "displayMode": "list",
-            "placement": "bottom",
-            "showLegend": true
-          },
-          "tooltip": {
-            "hideZeros": false,
-            "mode": "single",
-            "sort": "none"
-          }
-        },
-        "pluginVersion": "11.5.2",
-        "targets": [
-          {
-            "query": "from(bucket: \"imbench\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"message_revceived\")\n  |> filter(fn: (r) => r._field == \"latency_ms\")\n  |> keep(columns: [\"_time\", \"_value\"])\n  |> rename(columns: {_value: \"latency_ms\"})\n",
-            "refId": "A"
-          }
-        ],
-        "title": "Latency",
-        "type": "timeseries"
-      },
-      {
-        "datasource": {
-          "type": "influxdb",
-          "uid": "deg7oagpbjo5ca"
-        },
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "axisBorderShow": false,
-              "axisCenteredZero": false,
-              "axisColorMode": "text",
-              "axisLabel": "",
-              "axisPlacement": "auto",
-              "barAlignment": 0,
-              "barWidthFactor": 0.6,
-              "drawStyle": "line",
-              "fillOpacity": 0,
-              "gradientMode": "none",
-              "hideFrom": {
-                "legend": false,
-                "tooltip": false,
-                "viz": false
-              },
-              "insertNulls": false,
-              "lineInterpolation": "smooth",
-              "lineStyle": {
-                "fill": "solid"
-              },
-              "lineWidth": 1,
-              "pointSize": 5,
-              "scaleDistribution": {
-                "type": "linear"
-              },
-              "showPoints": "auto",
-              "spanNulls": false,
-              "stacking": {
-                "group": "A",
-                "mode": "none"
-              },
-              "thresholdsStyle": {
-                "mode": "off"
-              }
-            },
-            "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green",
-                  "value": null
-                },
-                {
-                  "color": "red",
-                  "value": 80
-                }
-              ]
-            }
-          },
-          "overrides": [
-            {
-              "matcher": {
-                "id": "byName",
-                "options": "cpu_usage"
-              },
-              "properties": [
-                {
-                  "id": "custom.axisPlacement",
-                  "value": "right"
-                }
-              ]
-            }
-          ]
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 0,
-          "y": 8
-        },
-        "id": 2,
-        "options": {
-          "legend": {
-            "calcs": [],
-            "displayMode": "list",
-            "placement": "bottom",
-            "showLegend": true
-          },
-          "tooltip": {
-            "hideZeros": false,
-            "mode": "single",
-            "sort": "none"
-          }
-        },
-        "pluginVersion": "11.5.2",
-        "targets": [
-          {
-            "query": "messages = from(bucket: \"imbench\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"message_sent\")\n  |> group(columns: [\"_field\"])\n  |> aggregateWindow(every: 2m, fn: count, createEmpty: false)  // Counts all messages per minute\n  |> map(fn: (r) => ({ _time: r._time, _field: \"messages_per_min\", _value: r._value }))\n\ncpu = from(bucket: \"imbench\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"server_cpu_usage\")\n  |> filter(fn: (r) => r._field == \"cpu_percentage\")\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)\n  |> map(fn: (r) => ({ _time: r._time, _field: \"cpu_usage\", _value: r._value }))\n\nunion(tables: [messages, cpu])",
-            "refId": "A"
-          }
-        ],
-        "title": "CPU Usage vs. Messages per Minute",
-        "type": "timeseries"
-      },
-      {
-        "datasource": {
-          "type": "influxdb",
-          "uid": "deg7oagpbjo5ca"
-        },
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "axisBorderShow": false,
-              "axisCenteredZero": false,
-              "axisColorMode": "text",
-              "axisLabel": "",
-              "axisPlacement": "auto",
-              "barAlignment": 0,
-              "barWidthFactor": 0.6,
-              "drawStyle": "line",
-              "fillOpacity": 0,
-              "gradientMode": "none",
-              "hideFrom": {
-                "legend": false,
-                "tooltip": false,
-                "viz": false
-              },
-              "insertNulls": false,
-              "lineInterpolation": "smooth",
-              "lineWidth": 1,
-              "pointSize": 5,
-              "scaleDistribution": {
-                "type": "linear"
-              },
-              "showPoints": "auto",
-              "spanNulls": false,
-              "stacking": {
-                "group": "A",
-                "mode": "none"
-              },
-              "thresholdsStyle": {
-                "mode": "off"
-              }
-            },
-            "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green",
-                  "value": null
-                },
-                {
-                  "color": "red",
-                  "value": 80
-                }
-              ]
-            }
-          },
-          "overrides": [
-            {
-              "matcher": {
-                "id": "byName",
-                "options": "avg_latency_ms"
-              },
-              "properties": [
-                {
-                  "id": "custom.axisPlacement",
-                  "value": "right"
-                }
-              ]
-            }
-          ]
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 0,
-          "y": 16
-        },
-        "id": 1,
-        "options": {
-          "legend": {
-            "calcs": [],
-            "displayMode": "list",
-            "placement": "bottom",
-            "showLegend": true
-          },
-          "timezone": [
-            ""
-          ],
-          "tooltip": {
-            "hideZeros": false,
-            "mode": "single",
-            "sort": "none"
-          }
-        },
-        "pluginVersion": "11.5.2",
-        "targets": [
-          {
-            "datasource": {
-              "type": "influxdb",
-              "uid": "deg7oagpbjo5ca"
-            },
-            "hide": false,
-            "query": "messages = from(bucket: \"imbench\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"message_sent\")\n  |> group(columns: [\"_field\"])\n  |> aggregateWindow(every: 2m, fn: count, createEmpty: false)  // Counts all messages per minute\n  |> map(fn: (r) => ({ _time: r._time, _field: \"messages_per_min\", _value: r._value }))\n\nlatency = from(bucket: \"imbench\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"message_revceived\")\n  |> filter(fn: (r) => r._field == \"latency_ms\")\n  |> aggregateWindow(every: 2m, fn: mean, createEmpty: false)  // Averages latency per minute\n  |> map(fn: (r) => ({ _time: r._time, _field: \"avg_latency_ms\", _value: r._value }))\n\nunion(tables: [messages, latency])",
-            "refId": "Latency-vs-Messages"
-          }
-        ],
-        "title": "Latency vs. Messages (per Min)",
-        "type": "timeseries"
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
       }
-    ],
-    "preload": false,
-    "refresh": "10s",
-    "schemaVersion": 40,
-    "tags": [],
-    "templating": {
-      "list": []
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 1,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "fegbdq4t1730gf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.5,
+            "drawStyle": "bars",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "fegbdq4t1730gf"
+          },
+          "hide": false,
+          "query": "sent = from(bucket: \"imbench\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"message\" and r._field == \"time_sent\")\n  |> keep(columns: [\"_time\", \"_value\", \"msgId\", \"sender\", \"receiver\"])\n  |> rename(columns: {_value: \"time_sent\"})\n\nreceived = from(bucket: \"imbench\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"message\" and r._field == \"time_received\")\n  |> keep(columns: [\"_value\", \"msgId\", \"sender\", \"receiver\"])\n  |> rename(columns: {_value: \"time_received\"})\n\njoin(tables: {sent: sent, received: received}, on: [\"msgId\", \"sender\", \"receiver\"])\n  |> map(fn: (r) => ({\n      msgId: r.msgId,\n      sender: r.sender,\n      receiver: r.receiver,\n      latency: float(v: r.time_received) - float(v: r.time_sent),\n      _time: r._time\n    }))\n  |> keep(columns: [\"_time\", \"latency\"])",
+          "refId": "B"
+        }
+      ],
+      "title": "Latency",
+      "type": "timeseries"
     },
-    "time": {
-      "from": "now-1h",
-      "to": "now"
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "fegbdq4t1730gf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg_latency"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "timezone": [
+          ""
+        ],
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "deg7oagpbjo5ca"
+          },
+          "hide": false,
+          "query": "messages = from(bucket: \"imbench\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"message\")\n  |> group(columns: [\"_field\"])\n  |> aggregateWindow(every: 1m, fn: count, createEmpty: false)  // Counts all messages per minute\n  |> map(fn: (r) => ({ _time: r._time, _field: \"avg_messages\", _value: r._value }))\n\nsent = from(bucket: \"imbench\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"message\" and r._field == \"time_sent\")\n  |> keep(columns: [\"_time\", \"_value\", \"msgId\", \"sender\", \"receiver\"])\n  |> rename(columns: {_value: \"time_sent\"})\n\nreceived = from(bucket: \"imbench\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"message\" and r._field == \"time_received\")\n  |> keep(columns: [\"_value\", \"msgId\", \"sender\", \"receiver\"])\n  |> rename(columns: {_value: \"time_received\"})\n\nlatency = join(tables: {sent: sent, received: received}, on: [\"msgId\", \"sender\", \"receiver\"])\n  |> map(fn: (r) => ({\n      msgId: r.msgId,\n      sender: r.sender,\n      receiver: r.receiver,\n      _value: float(v: r.time_received) - float(v: r.time_sent),  // Use _value for compatibility\n      _time: r._time\n    }))\n  |> keep(columns: [\"_time\", \"_value\"])\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)\n  |> map(fn: (r) => ({ _time: r._time, _field: \"avg_latency\", _value: r._value }))\n  |> group(columns: [\"_field\"])\n\n\nunion(tables: [messages, latency])",
+          "refId": "Latency-vs-Messages"
+        }
+      ],
+      "title": "Latency vs. Messages (per Min)",
+      "type": "timeseries"
     },
-    "timepicker": {},
-    "timezone": "browser",
-    "title": "IMBench",
-    "uid": "aeg7ultsun9xcd",
-    "version": 11,
-    "weekStart": ""
-  }
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "fegbdq4t1730gf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cpu_usage"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg_messages"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "yellow",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "query": "messages = from(bucket: \"imbench\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"message\")\n  |> group(columns: [\"_field\"])\n  |> aggregateWindow(every: 1m, fn: count, createEmpty: false)  // Counts all messages per minute\n  |> map(fn: (r) => ({ _time: r._time, _field: \"avg_messages\", _value: r._value }))\n\ncpu = from(bucket: \"imbench\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"server_cpu_usage\")\n  |> filter(fn: (r) => r._field == \"cpu_percentage\")\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)\n  |> map(fn: (r) => ({ _time: r._time, _field: \"cpu_usage\", _value: r._value }))\n\nunion(tables: [messages, cpu])",
+          "refId": "A"
+        }
+      ],
+      "title": "CPU Usage vs. Messages per Minute",
+      "type": "timeseries"
+    }
+  ],
+  "preload": false,
+  "refresh": "10s",
+  "schemaVersion": 40,
+  "tags": [],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "IMBench",
+  "uid": "aeg7ultsun9xcd",
+  "version": 5,
+  "weekStart": ""
+}
