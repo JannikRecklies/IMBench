@@ -1,0 +1,221 @@
+{
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": {
+            "type": "grafana",
+            "uid": "-- Grafana --"
+          },
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        }
+      ]
+    },
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 0,
+    "id": 2,
+    "links": [],
+    "panels": [
+      {
+        "datasource": {
+          "type": "influxdb",
+          "uid": "fegbdq4t1730gf"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisBorderShow": false,
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "fillOpacity": 80,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "lineWidth": 1,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        },
+        "id": 2,
+        "options": {
+          "barRadius": 0,
+          "barWidth": 0.97,
+          "fullHighlight": false,
+          "groupWidth": 0.7,
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom",
+            "showLegend": false
+          },
+          "orientation": "auto",
+          "showValue": "auto",
+          "stacking": "none",
+          "tooltip": {
+            "hideZeros": false,
+            "mode": "single",
+            "sort": "none"
+          },
+          "xTickLabelRotation": 0,
+          "xTickLabelSpacing": 100
+        },
+        "pluginVersion": "11.5.2",
+        "targets": [
+          {
+            "query": "from(bucket: \"imbench\")\n  |> range(start: -24h)  // Adjust time range as needed\n  |> filter(fn: (r) => r._measurement == \"conversation\" and r._field == \"inter_conversation_time\")\n  |> map(fn: (r) => ({\n      _time: r._time,\n      inter_conv_time_bucket: int(v: int(v: r._value) / 10) * 10,  // Group inter-conversation time into 10-second buckets\n      _value: 1  // Use 1 as a count\n    }))\n  |> group(columns: [\"inter_conv_time_bucket\"])  // Group by the bucket value\n  |> sum(column: \"_value\")  // Count the number of entries per bucket\n  |> map(fn: (r) => ({\n      _time: r._time,\n      _value: r._value,\n      inter_conv_time: string(v: r.inter_conv_time_bucket) + \"-\" + string(v: r.inter_conv_time_bucket + 10)  // Use bucket as range label\n    }))\n  |> keep(columns: [\"_time\", \"_value\", \"inter_conv_time\"])  // Keep only relevant columns",
+            "refId": "A"
+          }
+        ],
+        "title": "Inter conversation time",
+        "type": "barchart"
+      },
+      {
+        "datasource": {
+          "type": "influxdb",
+          "uid": "fegbdq4t1730gf"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisBorderShow": false,
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "Frequency of Occurrence",
+              "axisPlacement": "auto",
+              "fillOpacity": 64,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "lineWidth": 3,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        },
+        "id": 1,
+        "options": {
+          "barRadius": 0,
+          "barWidth": 1,
+          "fullHighlight": false,
+          "groupWidth": 0.7,
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom",
+            "showLegend": false
+          },
+          "orientation": "auto",
+          "showValue": "auto",
+          "stacking": "none",
+          "tooltip": {
+            "hideZeros": false,
+            "mode": "single",
+            "sort": "none"
+          },
+          "xField": "duration",
+          "xTickLabelRotation": 0,
+          "xTickLabelSpacing": 100
+        },
+        "pluginVersion": "11.5.2",
+        "targets": [
+          {
+            "datasource": {
+              "type": "influxdb",
+              "uid": "fegbdq4t1730gf"
+            },
+            "query": "from(bucket: \"imbench\")\n  |> range(start: -24h)  // Adjust time range as needed\n  |> filter(fn: (r) => r._measurement == \"conversation\" and r._field == \"duration\")\n  |> map(fn: (r) => ({\n      _time: r._time,\n      duration_bucket: int(v: int(v: r._value) / 10) * 10,  // Group duration into 10-second buckets\n      _value: 1  // Use 1 as a count\n    }))\n  |> group(columns: [\"duration_bucket\"])  // Group by the bucket value\n  |> sum(column: \"_value\")  // Count the number of entries per bucket\n  |> map(fn: (r) => ({\n      _time: r._time,\n      _value: r._value,\n      duration:  string(v: r.duration_bucket)  // Use bucket as the label\n    }))\n  |> keep(columns: [\"_time\", \"_value\", \"duration\"])  // Keep only relevant columns",
+            "refId": "A"
+          }
+        ],
+        "title": "Conversation duration",
+        "type": "barchart"
+      }
+    ],
+    "preload": false,
+    "refresh": "10s",
+    "schemaVersion": 40,
+    "tags": [],
+    "templating": {
+      "list": []
+    },
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "browser",
+    "title": "Behav",
+    "uid": "eegepyw91e70ge",
+    "version": 2,
+    "weekStart": ""
+  }

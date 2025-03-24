@@ -9,15 +9,15 @@ influx_client = InfluxDBClient(
 )
 write_api = influx_client.write_api(SYNCHRONOUS)
 
-def log_metric(metric_name, value, tags):
-    print(f'Storing metrics: ${metric_name} - {value} - {tags}')
-    point = Point(metric_name).field("value", value)
+def log_metric(metric_name, field_name, field_value, tags):
+    print(f'Storing metrics: ${metric_name} - {field_name}: {field_value} - {tags}')
+    point = Point(metric_name).field(field_name, field_value)
     for key, val in tags.items():
         point = point.tag(key, str(val))
     write_api.write(bucket="imbench", org="imbench", record=point)
 
 def log_conversation_duration(client_id, recipient, conversation_id, duration):
-    log_metric("conversation_duration", duration, {"participant_a": client_id, "participant_b": recipient, "conversation_id": conversation_id})
+    log_metric("conversation", "duration", duration, {"participant_a": client_id, "participant_b": recipient, "conversation_id": conversation_id})
 
-def log_inter_conversation_time(client_id, recipient, conversation_id):
-    log_metric("inter_conversation_time", time.time(), {"participant_a": client_id, "participant_b": recipient, "conversation_id": conversation_id})
+def log_inter_conversation_time(client_id, recipient, conversation_id, inter_conversation_time):
+    log_metric("conversation", "inter_conversation_time", inter_conversation_time, {"participant_a": client_id, "participant_b": recipient, "conversation_id": conversation_id})

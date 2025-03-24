@@ -66,11 +66,12 @@ class Client:
     async def _simulate_behavior(self):
         """Randomly initiates conversations at different times."""
         while True:
-            await asyncio.sleep(utils.get_inter_conversation_time())
+            inter_conversation_time = utils.get_inter_conversation_time()
+            await asyncio.sleep(inter_conversation_time)
             if utils.should_initiate_conversation():
                 recipient = utils.choose_recipient(self.connections)
                 if conversation.can_start_new_conversation(recipient, self.ongoing_conversations):
-                    await self._initiate_conversation(recipient)
+                    await self._initiate_conversation(recipient, inter_conversation_time)
 
     async def _end_conversation(self, sender, conversation_id):
         """End the conversation and log its duration."""
@@ -86,12 +87,12 @@ class Client:
         await asyncio.sleep(delay)
         await self._send_message(sender, f"Reply from {self.client_id}", conversation_id)
 
-    async def _initiate_conversation(self, recipient):
+    async def _initiate_conversation(self, recipient, inter_conversation_time):
         """Initiate a new conversation."""
         conversation_id = conversation.generate_conversation_id(self.client_id, recipient)
         self.ongoing_conversations[conversation_id] = conversation.create_conversation_obj(recipient)
-        # metrics.log_inter_conversation_time()
         print(f"📢 Initiating conversation [{self.client_id} ->  {recipient}] --- Conv_id: {conversation_id}")
+        metrics.log_inter_conversation_time(self.client_id, recipient, conversation_id, inter_conversation_time) 
         await self._send_message(recipient, "Hello!", conversation_id)
 
     async def run(self):
