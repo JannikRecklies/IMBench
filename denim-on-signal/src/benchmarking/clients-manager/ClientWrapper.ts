@@ -137,7 +137,7 @@ export class ClientWrapper {
         const time_received = Date.now();
         const sender = processedMessage.sender.name();
         const parsedData = JSON.parse(processedMessage.message); // Extract structured message
-        const msgId = parsedData.message_id; // Extract msgId from metadata
+        const msgId = parsedData.messageId; // Extract msgId from metadata
         const messageSize = Buffer.byteLength(processedMessage.message);
         
         // Store sent message metadata
@@ -180,7 +180,7 @@ export class ClientWrapper {
     async sendMessage(message: string, recipientId: string) {
         const recipientSignalAddress = SignalLib.ProtocolAddress.new(recipientId, Constants.DEFAULT_DEVICE_ID);
 
-        logger.debug(`Sending message [${this.clientId} → ${recipientId}]: "${message}"`);
+        logger.info(`Sending message [${this.clientId} → ${recipientId}]: "${message}"`);
 
         // Parse the message to extract msg_id
         const parsedMessage = JSON.parse(message);
@@ -191,7 +191,6 @@ export class ClientWrapper {
 
         // Store sent message metadata
         this.logMessageSent(msgId, this.clientId, recipientId, messageSize, timeSent);
-
 
         const msg = new Message(message, this.denimClient.address, recipientSignalAddress, false, Constants.MESSAGE_TYPE_TEXT);
         
