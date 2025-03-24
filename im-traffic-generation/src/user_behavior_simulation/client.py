@@ -90,6 +90,7 @@ class Client:
         """Initiate a new conversation."""
         conversation_id = conversation.generate_conversation_id(self.client_id, recipient)
         self.ongoing_conversations[conversation_id] = conversation.create_conversation_obj(recipient)
+        # metrics.log_inter_conversation_time()
         print(f"📢 Initiating conversation [{self.client_id} ->  {recipient}] --- Conv_id: {conversation_id}")
         await self._send_message(recipient, "Hello!", conversation_id)
 

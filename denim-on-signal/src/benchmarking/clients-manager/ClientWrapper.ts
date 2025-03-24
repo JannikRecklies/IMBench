@@ -6,7 +6,7 @@ import { denim_proto } from "../../proto-generated/compiled";
 import { Message } from '../../core/Message';
 import { client as WebSocketClient } from 'websocket';
 import EventEmitter from 'events';
-import { InfluxDB, Point } from "@influxdata/influxdb-client";
+import { InfluxDB, Point, WriteApi } from "@influxdata/influxdb-client";
 
 const logger = require('../../helper/Logger').getLogger("ClientWrapper", Constants.LOGLEVEL);
 
@@ -15,8 +15,18 @@ const INFLUX_TOKEN = process.env.INFLUX_TOKEN || "your-default-token";
 const INFLUX_ORG = process.env.INFLUX_ORG || "imbench";
 const INFLUX_BUCKET = process.env.INFLUX_BUCKET || "imbench";
 
-const influx = new InfluxDB({ url: INFLUX_URL, token: INFLUX_TOKEN });
-const writeApi = influx.getWriteApi(INFLUX_ORG, INFLUX_BUCKET);
+let writeApi: WriteApi;
+
+function createWriteApi() {
+    try {
+        const influx = new InfluxDB({ url: INFLUX_URL, token: INFLUX_TOKEN });
+        writeApi = influx.getWriteApi(INFLUX_ORG, INFLUX_BUCKET);
+        logger.info("✅ Successfully connected to InfluxDB");
+    } catch (error) {
+        logger.error("❌ Failed to connect to InfluxDB:", error);
+        setTimeout(createWriteApi, 5000);  // Retry after 5 seconds
+    }
+}
 
 export class ClientWrapper {
     private clientId: string;
@@ -43,6 +53,9 @@ export class ClientWrapper {
      */
     async initialize() {
         logger.debug(`Initializing DenimClient ${this.clientSignalAddress.name()}`);
+        
+        createWriteApi(); // Connect client to the database for metrics storage of messages
+        
         this.denimClient = await newDenimClient(this.clientId, this.deviceId);
         this.sendFunction = await this.initConnection();
 
@@ -251,6 +264,9 @@ export class ClientWrapper {
             logger.debug(`✅ Successfully logged sent message ${msgId}`);
         }).catch((err) => {
             logger.error(`❌ Error logging sent message ${msgId}:`, err);
+            createWriteApi();  // Reconnect on failure
+            writeApi.close();
+            writeApi.writePoint(point);
         });
     }
 
@@ -266,6 +282,9 @@ export class ClientWrapper {
             logger.debug(`✅ Successfully logged received message ${msgId}`);
         }).catch((err) => {
             logger.error(`❌ Error logging received message ${msgId}:`, err);
+            writeApi.close();
+            createWriteApi();  // Reconnect on failure
+            writeApi.writePoint(point);
         });
     }
 
