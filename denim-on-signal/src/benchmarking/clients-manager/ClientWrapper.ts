@@ -184,7 +184,7 @@ export class ClientWrapper {
 
         // Parse the message to extract msg_id
         const parsedMessage = JSON.parse(message);
-        const msgId = parsedMessage.message_id;
+        const msgId = parsedMessage.messageId;
 
         const timeSent = Date.now();
         const messageSize = Buffer.byteLength(message);
