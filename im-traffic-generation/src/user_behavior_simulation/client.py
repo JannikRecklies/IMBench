@@ -1,4 +1,5 @@
 import asyncio
+import os
 import uuid
 import websockets
 import json
@@ -8,6 +9,9 @@ import user_behavior_simulation.helper.conversation as conversation
 import user_behavior_simulation.helper.metrics as metrics
 import user_behavior_simulation.helper.utils as utils
 
+INTER_CONVERSATION_TIME_MINIMUM = float(os.getenv("INTER_CONVERSATION_TIME_MINIMUM", 0.1))
+INTER_CONVERSATION_TIME_MAXIMUM = float(os.getenv("INTER_CONVERSATION_TIME_MAXIMUM", 120))
+INTER_CONVERSATION_TIME_EXPONENT = float(os.getenv("INTER_CONVERSATION_TIME_EXPONENT", 0.5))
 
 class Client:
     def __init__(self, client_id, connections, ws_uri):
@@ -38,17 +42,17 @@ class Client:
         received_message = data["message_content"]
         
         message_content = json.loads(received_message)
-        command = message_content.get("command")
         conversation_id = message_content.get("conversationId")
-        conversation_type = message_content.get("conversationType", "sync")  # Default to "sync" if not specified
-        expected_duration = message_content.get("expectedDuration", 300)  # Default to 300 seconds if not specified
         message_text = message_content.get("additionalText")
+        
         print(f"📩 Received Message [{sender} -> {self.client_id}] [Conv: {conversation_id}] --- {message_text}")
 
         # Check if the message is a start conversation message
         if conversation_id not in self.ongoing_conversations:
-            print(f"🆕 Starting new conversation [{sender} -> {self.client_id}] [Conv: {conversation_id}] (Type: {conversation_type}, Duration: {expected_duration}s)")
+            conversation_type = message_content.get("conversationType") 
+            expected_duration = message_content.get("expectedDuration") 
             self.ongoing_conversations[conversation_id] = conversation.create_conversation_obj(sender, conversation_type, expected_duration)
+            # print(f"🆕 Received start of new conversation [{sender} -> {self.client_id}] [Conv: {conversation_id}] (Type: {conversation_type}, Duration: {expected_duration}s)")
         elif conversation.is_end_of_conversation_message(message_text, conversation_id, self.ongoing_conversations):
             print(f"🛑 Received Conversation End Message [{sender} -> {self.client_id}] --- Conv_id: {conversation_id}")
             del self.ongoing_conversations[conversation_id]
@@ -84,11 +88,10 @@ class Client:
         """Randomly initiates conversations at different times."""
         while True:
             inter_conversation_time = utils.get_inter_conversation_time()
-            await asyncio.sleep(inter_conversation_time)
-            if utils.should_initiate_conversation():
-                recipient = utils.choose_recipient(self.connections)
-                if conversation.can_start_new_conversation(recipient, self.ongoing_conversations):
-                    await self._initiate_conversation(recipient, inter_conversation_time)
+            await asyncio.sleep(inter_conversation_time * 60) # min to sec
+            recipient = utils.choose_recipient(self.connections)
+            if conversation.can_start_new_conversation(recipient, self.ongoing_conversations):
+                await self._initiate_conversation(recipient, inter_conversation_time)
 
     async def _end_conversation(self, sender, conversation_id):
         """End the conversation and log its duration."""
@@ -99,34 +102,25 @@ class Client:
 
     async def _respond_to_message(self, sender, conversation_id):
         """Respond to the received message."""
-        delay = utils.get_response_delay()
-        print(f"⏳ Responding to Message [{self.client_id} -> {sender}] --- Delay: {delay:.2f}s")
-        await asyncio.sleep(delay)
         conversation_obj = self.ongoing_conversations[conversation_id]
         conversation_type = conversation_obj["conversation_type"]
-        duration =conversation_obj["duration"]
+        duration = conversation_obj["duration"]
+        delay = utils.get_response_delay(conversation_type) * 60 # min to sec
+        print(f"⏳ Responding to Message [{self.client_id} -> {sender}] --- Delay: {delay:.2f}s")
+        await asyncio.sleep(delay)
         await self._send_message(sender, f"Reply from {self.client_id}", conversation_id, conversation_type, duration)
 
     async def _initiate_conversation(self, recipient, inter_conversation_time):
         """Initiate a new conversation."""
         conversation_id = conversation.generate_conversation_id(self.client_id, recipient)
-        conversation_type = "sync"  # You can change this to "async" depending on logic
-        expected_duration = utils.get_conversation_duration()
+        conversation_duration = utils.get_conversation_duration()
+        conversation_type = utils.get_conversation_type(conversation_duration=conversation_duration)
         
-        self.ongoing_conversations[conversation_id] = conversation.create_conversation_obj(recipient, conversation_type, expected_duration)
-        print(f"📢 Initiating conversation [{self.client_id} -> {recipient}] --- Conv_id: {conversation_id} (Type: {conversation_type}, Duration: {expected_duration}s)")
+        self.ongoing_conversations[conversation_id] = conversation.create_conversation_obj(recipient, conversation_type, conversation_duration)
+        print(f"📢 Initiating conversation [{self.client_id} -> {recipient}] --- Conv_id: {conversation_id} (Type: {conversation_type}, Duration: {conversation_duration}s)")
         metrics.log_inter_conversation_time(self.client_id, recipient, conversation_id, inter_conversation_time)
-        
-        # Send a start conversation message with the structured format
-        start_message = {
-            "command": "start_conversation",
-            "clientId": str(self.client_id),
-            "recipientId": str(recipient),
-            "conversationId": conversation_id,
-            "conversationType": conversation_type,
-            "expectedDuration": expected_duration
-        }
-        await self._send_message(recipient, json.dumps(start_message), conversation_id)
+    
+        await self._send_message(recipient, "START_CONVERSATION" , conversation_id, conversation_type, conversation_duration)
 
     async def run(self):
         """Run the client, connecting and listening for messages."""

@@ -17,7 +17,7 @@ def log_metric(metric_name, field_name, field_value, tags):
     write_api.write(bucket="imbench", org="imbench", record=point)
 
 def log_conversation_duration(client_id, recipient, conversation_id, duration):
-    log_metric("conversation", "duration", duration, {"participant_a": client_id, "participant_b": recipient, "conversation_id": conversation_id})
+    log_metric("conversation", "duration", float(duration), {"participant_a": client_id, "participant_b": recipient, "conversation_id": conversation_id})
 
 def log_inter_conversation_time(client_id, recipient, conversation_id, inter_conversation_time):
-    log_metric("conversation", "inter_conversation_time", inter_conversation_time, {"participant_a": client_id, "participant_b": recipient, "conversation_id": conversation_id})
+    log_metric("conversation", "inter_conversation_time", float(inter_conversation_time), {"participant_a": client_id, "participant_b": recipient, "conversation_id": conversation_id})

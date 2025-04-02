@@ -264,7 +264,7 @@ export class ClientWrapper {
         }).catch((err) => {
             logger.error(`❌ Error logging sent message ${msgId}:`, err);
             createWriteApi();  // Reconnect on failure
-            writeApi.close();
+            //writeApi.close();
             writeApi.writePoint(point);
         });
     }
@@ -281,7 +281,7 @@ export class ClientWrapper {
             logger.debug(`✅ Successfully logged received message ${msgId}`);
         }).catch((err) => {
             logger.error(`❌ Error logging received message ${msgId}:`, err);
-            writeApi.close();
+            //writeApi.close();
             createWriteApi();  // Reconnect on failure
             writeApi.writePoint(point);
         });
