@@ -21,3 +21,9 @@ def log_conversation_duration(client_id, recipient, conversation_id, duration):
 
 def log_inter_conversation_time(client_id, recipient, conversation_id, inter_conversation_time):
     log_metric("conversation", "inter_conversation_time", float(inter_conversation_time), {"participant_a": client_id, "participant_b": recipient, "conversation_id": conversation_id})
+
+def log_number_of_messages(client_id, recipient, conversation_id, number_of_messages):
+    log_metric("conversation", "number_of_messages", int(number_of_messages), {"participant_a": client_id, "participant_b": recipient, "conversation_id": conversation_id})
+
+def log_response_time(client_id, recipient, conversation_id, response_time):
+    log_metric("conversation", "response_time", float(response_time), {"participant_a": client_id, "participant_b": recipient, "conversation_id": conversation_id})

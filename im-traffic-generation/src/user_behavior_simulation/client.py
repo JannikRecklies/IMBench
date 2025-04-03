@@ -50,29 +50,26 @@ class Client:
         # Check if the message is a start conversation message
         if conversation_id not in self.ongoing_conversations:
             conversation_type = message_content.get("conversationType") 
-            expected_duration = message_content.get("expectedDuration") 
-            self.ongoing_conversations[conversation_id] = conversation.create_conversation_obj(sender, conversation_type, expected_duration)
-            # print(f"🆕 Received start of new conversation [{sender} -> {self.client_id}] [Conv: {conversation_id}] (Type: {conversation_type}, Duration: {expected_duration}s)")
-        elif conversation.is_end_of_conversation_message(message_text, conversation_id, self.ongoing_conversations):
-            print(f"🛑 Received Conversation End Message [{sender} -> {self.client_id}] --- Conv_id: {conversation_id}")
-            del self.ongoing_conversations[conversation_id]
-            return
-        elif conversation.should_conversation_end(self.ongoing_conversations[conversation_id]):
-            print(f"🛑 Sending Conversation End Message [{sender} -> {self.client_id}] --- Conv_id: {conversation_id}")
-            await self._end_conversation(sender, conversation_id)
-            return
-        else: # Update the conversation object
-            self.ongoing_conversations[conversation_id]["last_message_time"] = time.time()
+            expected_number_of_messages = message_content.get("expectedNumberOfMessages") 
+            self.ongoing_conversations[conversation_id] = conversation.create_conversation_obj(sender, conversation_type, expected_number_of_messages)
+            # print(f"🆕 Received start of new conversation [{sender} -> {self.client_id}] [Conv: {conversation_id}] (Type: {conversation_type}, expected_number_of_messages: {expected_number_of_messages}s)")
         
-        await self._respond_to_message(sender, conversation_id)
+        # Update the conversation object
+        self.ongoing_conversations[conversation_id]["last_message_time"] = time.time()
+        self.ongoing_conversations[conversation_id]["messages_exchanged"] = int(self.ongoing_conversations[conversation_id]["messages_exchanged"]) + 1
+        
+        if int(self.ongoing_conversations[conversation_id]["messages_exchanged"]) >= int(self.ongoing_conversations[conversation_id]["expected_number_of_messages"]):
+            del self.ongoing_conversations[conversation_id]
+        else:
+            await self._respond_to_message(sender, conversation_id)
 
-    async def _send_message(self, recipient, text, conversation_id, conversation_type="sync", expected_duration=300):
+    async def _send_message(self, recipient, text, conversation_id, conversation_type="sync", expected_number_of_messages=4):
         """Send a message."""
         message_content = {
             "messageId": str(uuid.uuid4()),
             "conversationId": conversation_id,
             "conversationType": conversation_type,
-            "expectedDuration": expected_duration,
+            "expectedNumberOfMessages": expected_number_of_messages,
             "additionalText": text
         }
         websocket_transfer_obj = {
@@ -82,7 +79,11 @@ class Client:
             "message_content": json.dumps(message_content)
         }
         await self.websocket.send(json.dumps(websocket_transfer_obj))
-        print(f'📤 Sent Message [{self.client_id} -> {recipient}] --- Content: "{message_content}" (ConvType: {conversation_type}, Duration: {expected_duration}s)')
+        self.ongoing_conversations[conversation_id]["messages_exchanged"] = int(self.ongoing_conversations[conversation_id]["messages_exchanged"]) + 1
+        print(f'📤 Sent Message [{self.client_id} -> {recipient}] --- Message number: {self.ongoing_conversations[conversation_id]["messages_exchanged"]}/{self.ongoing_conversations[conversation_id]["expected_number_of_messages"]}')
+        
+        if int(self.ongoing_conversations[conversation_id]["messages_exchanged"]) >= int(self.ongoing_conversations[conversation_id]["expected_number_of_messages"]):
+            self._end_conversation(recipient, conversation_id)
 
     async def _simulate_behavior(self):
         """Randomly initiates conversations at different times."""
@@ -93,34 +94,37 @@ class Client:
             if conversation.can_start_new_conversation(recipient, self.ongoing_conversations):
                 await self._initiate_conversation(recipient, inter_conversation_time)
 
-    async def _end_conversation(self, sender, conversation_id):
+    def _end_conversation(self, sender, conversation_id):
         """End the conversation and log its duration."""
-        duration = time.time() - self.ongoing_conversations[conversation_id]["start_time"]
-        metrics.log_conversation_duration(self.client_id, sender, conversation_id, duration)
-        await self._send_message(sender, "END_CONVERSATION", conversation_id)
+        duration_sec = time.time() - self.ongoing_conversations[conversation_id]["start_time"]
+        duration_min = duration_sec / 60.0
+        metrics.log_conversation_duration(self.client_id, sender, conversation_id, duration_min)
+        metrics.log_number_of_messages(self.client_id, sender, conversation_id, self.ongoing_conversations[conversation_id]["messages_exchanged"])
+        print(f"🛑 Ending conversation [{sender} -> {self.client_id}] --- Conv: {self.ongoing_conversations[conversation_id]}")
         del self.ongoing_conversations[conversation_id]
 
     async def _respond_to_message(self, sender, conversation_id):
         """Respond to the received message."""
         conversation_obj = self.ongoing_conversations[conversation_id]
         conversation_type = conversation_obj["conversation_type"]
-        duration = conversation_obj["duration"]
+        expected_number_of_messages = conversation_obj["expected_number_of_messages"]
         delay = utils.get_response_delay(conversation_type) * 60 # min to sec
-        print(f"⏳ Responding to Message [{self.client_id} -> {sender}] --- Delay: {delay:.2f}s")
+        print(f"⏳ Delay until next Message [{self.client_id} -> {sender}] --- {delay:.2f}sec (ConvType: {conversation_type})")
+        metrics.log_response_time(self.client_id, sender, conversation_id, delay)
         await asyncio.sleep(delay)
-        await self._send_message(sender, f"Reply from {self.client_id}", conversation_id, conversation_type, duration)
+        await self._send_message(sender, f"Reply from {self.client_id}", conversation_id, conversation_type, expected_number_of_messages)
 
     async def _initiate_conversation(self, recipient, inter_conversation_time):
         """Initiate a new conversation."""
         conversation_id = conversation.generate_conversation_id(self.client_id, recipient)
-        conversation_duration = utils.get_conversation_duration()
-        conversation_type = utils.get_conversation_type(conversation_duration=conversation_duration)
+        expected_number_of_messages = utils.get_expected_number_of_messages_for_conversation()
+        conversation_type = utils.get_conversation_type()
         
-        self.ongoing_conversations[conversation_id] = conversation.create_conversation_obj(recipient, conversation_type, conversation_duration)
-        print(f"📢 Initiating conversation [{self.client_id} -> {recipient}] --- Conv_id: {conversation_id} (Type: {conversation_type}, Duration: {conversation_duration}s)")
+        self.ongoing_conversations[conversation_id] = conversation.create_conversation_obj(recipient, conversation_type, expected_number_of_messages)
+        print(f"📢 Initiating conversation [{self.client_id} -> {recipient}] --- Conv: {self.ongoing_conversations[conversation_id]}")
         metrics.log_inter_conversation_time(self.client_id, recipient, conversation_id, inter_conversation_time)
     
-        await self._send_message(recipient, "START_CONVERSATION" , conversation_id, conversation_type, conversation_duration)
+        await self._send_message(recipient, "START_CONVERSATION" , conversation_id, conversation_type, expected_number_of_messages)
 
     async def run(self):
         """Run the client, connecting and listening for messages."""

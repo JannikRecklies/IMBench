@@ -10,13 +10,14 @@ def should_conversation_end(conversation):
     elapsed_time = time.time() - conversation["start_time"]
     return elapsed_time > conversation["duration"]
 
-def create_conversation_obj(recipient, conversation_type="sync", expected_duration=300):
+def create_conversation_obj(recipient, conversation_type="sync", expected_number_of_messages=4):
     return {
         "start_time": time.time(),
         "last_message_time": time.time(),
-        "duration": expected_duration,
         "recipient": recipient,
-        "conversation_type": conversation_type
+        "conversation_type": conversation_type,
+        "messages_exchanged": 0,
+        "expected_number_of_messages": expected_number_of_messages
     }
 
 def can_start_new_conversation(recipient, ongoing_conversations):

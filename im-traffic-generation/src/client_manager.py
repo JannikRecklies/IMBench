@@ -6,7 +6,7 @@ from user_behavior_simulation.client import Client
 from social_graph_generation.social_graph_generator import generate_hk_graph, assign_edge_weights
 
 WEBSOCKET_URI = "ws://127.0.0.1:8081"
-NUMBER_CLIENTS = 10
+NUMBER_CLIENTS = 50
 
 def create_clients_from_graph():
     """Generates a social graph and initializes clients based on it."""
@@ -33,6 +33,6 @@ async def main():
     for client in clients.values():
         thread = threading.Thread(target=start_client, args=(client,))
         thread.start()
-        await asyncio.sleep(0.5)  # Small delay to avoid overload
+        #await asyncio.sleep(0.5)  # Small delay to avoid overload
 
 asyncio.run(main())
