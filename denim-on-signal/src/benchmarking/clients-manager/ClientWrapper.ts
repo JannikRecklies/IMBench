@@ -20,7 +20,11 @@ let writeApi: WriteApi;
 function createWriteApi() {
     try {
         const influx = new InfluxDB({ url: INFLUX_URL, token: INFLUX_TOKEN });
-        writeApi = influx.getWriteApi(INFLUX_ORG, INFLUX_BUCKET);
+        // Configure batching (e.g., flush every 5s or when 100 points are queued)
+        writeApi = influx.getWriteApi(INFLUX_ORG, INFLUX_BUCKET, "ns", {
+            batchSize: 100,
+            flushInterval: 5000,
+        });
         logger.info("✅ Successfully connected to InfluxDB");
     } catch (error) {
         logger.error("❌ Failed to connect to InfluxDB:", error);
@@ -257,16 +261,14 @@ export class ClientWrapper {
             .tag("sender", sender)
             .tag("receiver", receiver)
             .intField("msg_size", msg_size)
-            .intField("time_sent", time_sent);
-        writeApi.writePoint(point);
-        writeApi.flush().then(() => {
-            logger.debug(`✅ Successfully logged sent message ${msgId}`);
-        }).catch((err) => {
-            logger.error(`❌ Error logging sent message ${msgId}:`, err);
-            createWriteApi();  // Reconnect on failure
-            //writeApi.close();
+            .intField("time_sent", time_sent)
+            .timestamp(new Date(time_sent));
+        try {
             writeApi.writePoint(point);
-        });
+        } catch (err) {
+            logger.error(`❌ Error writing point for ${msgId}:`, err);
+            createWriteApi();
+        }
     }
 
     private logMessageReceived(msgId: string, sender: string, receiver: string, msg_size: number, time_received: number) {
@@ -275,16 +277,14 @@ export class ClientWrapper {
             .tag("sender", sender)
             .tag("receiver", receiver)
             .intField("msg_size", msg_size)
-            .intField("time_received", time_received);  // Just add the received time to the existing point
-        writeApi.writePoint(point);
-        writeApi.flush().then(() => {
-            logger.debug(`✅ Successfully logged received message ${msgId}`);
-        }).catch((err) => {
-            logger.error(`❌ Error logging received message ${msgId}:`, err);
-            //writeApi.close();
-            createWriteApi();  // Reconnect on failure
+            .intField("time_received", time_received)  // Just add the received time to the existing point
+            .timestamp(new Date(time_received));
+        try {
             writeApi.writePoint(point);
-        });
+        } catch (err) {
+            logger.error(`❌ Error writing point for ${msgId}:`, err);
+            createWriteApi();
+        }
     }
 
 }

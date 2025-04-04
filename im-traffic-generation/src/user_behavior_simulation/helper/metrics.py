@@ -10,7 +10,7 @@ influx_client = InfluxDBClient(
 write_api = influx_client.write_api(SYNCHRONOUS)
 
 def log_metric(metric_name, field_name, field_value, tags):
-    print(f'Storing metrics: ${metric_name} - {field_name}: {field_value} - {tags}')
+    # print(f'Storing metrics: ${metric_name} - {field_name}: {field_value} - {tags}')
     point = Point(metric_name).field(field_name, field_value)
     for key, val in tags.items():
         point = point.tag(key, str(val))

@@ -46,7 +46,6 @@ class Client:
         message_burst_block_id = message_content.get("messageBurstBlockId")
         message_text = message_content.get("additionalText")
         
-        print(f"📩 Received Message [{sender} -> {self.client_id}] [Conv: {conversation_id}] --- {message_text}")
 
         # Check if the message is a start conversation message
         if conversation_id not in self.ongoing_conversations:
@@ -58,6 +57,8 @@ class Client:
         # Update the conversation object
         self.ongoing_conversations[conversation_id]["last_message_time"] = time.time()
         self.ongoing_conversations[conversation_id]["messages_exchanged"] = int(self.ongoing_conversations[conversation_id]["messages_exchanged"]) + 1
+        
+        print(f'📩 Received Message [{sender} -> {self.client_id}] --- Conv: {conversation_id} --- Message number: {self.ongoing_conversations[conversation_id]["messages_exchanged"]}/{self.ongoing_conversations[conversation_id]["expected_number_of_messages"]}')
         
         if int(self.ongoing_conversations[conversation_id]["messages_exchanged"]) >= int(self.ongoing_conversations[conversation_id]["expected_number_of_messages"]):
             del self.ongoing_conversations[conversation_id] 
@@ -77,7 +78,7 @@ class Client:
         conversation_type = conversation_obj["conversation_type"]
         expected_number_of_messages = conversation_obj["expected_number_of_messages"]
         delay = utils.get_response_delay() * 60 # min to sec
-        print(f"⏳ Delay until next Message [{self.client_id} -> {sender}] --- {delay:.2f}sec (ConvType: {conversation_type})")
+        print(f"⏳ Delay until next Message [{self.client_id} -> {sender}] --- Conv: {conversation_id} --- {delay:.2f}sec")
         metrics.log_response_time(self.client_id, sender, conversation_id, delay)
         await asyncio.sleep(delay)
         await self._send_message(sender, conversation_id, conversation_type, expected_number_of_messages)
@@ -105,10 +106,11 @@ class Client:
             }
             await self.websocket.send(json.dumps(websocket_transfer_obj))
             self.ongoing_conversations[conversation_id]["messages_exchanged"] = int(self.ongoing_conversations[conversation_id]["messages_exchanged"]) + 1
-            print(f'📤 Sent Message [{self.client_id} -> {recipient}] --- Message number: {self.ongoing_conversations[conversation_id]["messages_exchanged"]}/{self.ongoing_conversations[conversation_id]["expected_number_of_messages"]}')
+            print(f'📤 Sent Message [{self.client_id} -> {recipient}] --- Conv: {conversation_id} --- Message number: {self.ongoing_conversations[conversation_id]["messages_exchanged"]}/{self.ongoing_conversations[conversation_id]["expected_number_of_messages"]}')
             
             if int(self.ongoing_conversations[conversation_id]["messages_exchanged"]) >= int(self.ongoing_conversations[conversation_id]["expected_number_of_messages"]):
                 self._end_conversation(recipient, conversation_id)
+                print(f"🛑 Deleting conversation from memory [{recipient} -> {self.client_id}]")
                 return
             
             message_burst_block_delay_min = utils.get_bursty_message_delay()
@@ -130,7 +132,7 @@ class Client:
         duration_min = duration_sec / 60.0
         metrics.log_conversation_duration(self.client_id, sender, conversation_id, duration_min)
         metrics.log_number_of_messages(self.client_id, sender, conversation_id, self.ongoing_conversations[conversation_id]["messages_exchanged"])
-        print(f"🛑 Ending conversation [{sender} -> {self.client_id}] --- Conv: {self.ongoing_conversations[conversation_id]}")
+        print(f"🛑 Store metadata of conversation and delete it from memory [{sender} -> {self.client_id}] --- Conv: {self.ongoing_conversations[conversation_id]}")
         del self.ongoing_conversations[conversation_id]
 
     async def _initiate_conversation(self, recipient, inter_conversation_time):
