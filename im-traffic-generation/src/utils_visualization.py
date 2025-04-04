@@ -28,24 +28,46 @@ def plot_inter_conversation_time():
 
     plt.show()
 
-def plot_conversation_duration():
-    times = [utils.get_conversation_duration() for _ in range(10000)]
-    conversation_type_threshold = utils.get_conversation_type_threshold()
+def plot_bursty_consecutive_messages():
+    burst_block_sizes = [utils.get_bursty_consecutive_messages() for _ in range(10000)]
     
-    avg_time = np.mean(times)
-    median_time = np.median(times)
-    min_time = min(times)
-    max_time = max(times)
+    avg_time = np.mean(burst_block_sizes)
+    median_time = np.median(burst_block_sizes)
+    min_time = min(burst_block_sizes)
+    max_time = max(burst_block_sizes)
 
     # Plotting the histogram
     plt.figure(figsize=(8, 6))
-    plt.hist(times, bins=100, density=True, alpha=0.7, color='blue')
-    plt.xlabel("Sync Conversation Duration (minutes)")
+    plt.hist(burst_block_sizes, bins=100, density=True, alpha=0.7, color='blue')
+    plt.xlabel("Burstiness (amount of consecutively sent messages within one block)")
     plt.ylabel("Probability Density")
-    plt.title("Heavy-Tailed Conversation Duration Distribution")
+    plt.title("Heavy-Tailed Burstiness Distribution")
 
     # Statistics text box
-    stats_text = f"Avg Time: {avg_time:.2f} min\nMedian Time: {median_time:.2f} min\nMin Time: {min_time:.2f} min\nMax Time: {max_time:.2f} min\nSync-Async-Threshold: {conversation_type_threshold:.2f} min"
+    stats_text = f"Avg Burst: {avg_time:.2f} min\nMedian Burst: {median_time:.2f} min\nMin Burst: {min_time:.2f} min\nMax Burst: {max_time:.2f} min"
+    props = dict(boxstyle='round', facecolor='lightgray', alpha=0.7)
+    plt.gca().text(0.95, 0.95, stats_text, transform=plt.gca().transAxes,
+                   fontsize=10, verticalalignment='top', horizontalalignment='right', bbox=props)
+
+    plt.show()
+
+def plot_bursty_consecutive_messages():
+    bursty_message_delays = [utils.get_bursty_message_delay()*60 for _ in range(10000)]
+    
+    avg_time = np.mean(bursty_message_delays)
+    median_time = np.median(bursty_message_delays)
+    min_time = min(bursty_message_delays)
+    max_time = max(bursty_message_delays)
+
+    # Plotting the histogram
+    plt.figure(figsize=(8, 6))
+    plt.hist(bursty_message_delays, bins=100, density=True, alpha=0.7, color='blue')
+    plt.xlabel("Burstiness (message delays within burst block)")
+    plt.ylabel("Probability Density")
+    plt.title("Heavy-Tailed Bursty Message Delay Distribution")
+
+    # Statistics text box
+    stats_text = f"Avg Intra Burst Delay: {avg_time:.2f}sec\nMedian Intra Burst Delay: {median_time:.2f}sec\nMin Intra Burst Delay: {min_time:.2f}sec\nMax Intra Burst Delay: {max_time:.2f}sec"
     props = dict(boxstyle='round', facecolor='lightgray', alpha=0.7)
     plt.gca().text(0.95, 0.95, stats_text, transform=plt.gca().transAxes,
                    fontsize=10, verticalalignment='top', horizontalalignment='right', bbox=props)
@@ -75,28 +97,6 @@ def plot_expected_messages_per_conversation():
 
     plt.show()
 
-def plot_conversation_type(sample_size=100):
-    expected_number_of_messages = [utils.get_expected_number_of_messages_for_conversation() for _ in range(sample_size)]
-    conversation_types = [utils.get_conversation_type(m) for m in expected_number_of_messages]
-    conversation_type_threshold = utils.get_conversation_type_threshold()
-
-    # Count how many of each type
-    counts = Counter(conversation_types)
-    sync_count = counts.get("sync", 0)
-    async_count = counts.get("async", 0)
-
-    print(f"✅ Sync: {sync_count} ({sync_count/sample_size*100:.2f}%)")
-    print(f"✅ Async: {async_count} ({async_count/sample_size*100:.2f}%)")
-
-    # Plotting
-    plt.bar(["Sync", "Async"], [sync_count, async_count], color=["skyblue", "salmon"])
-    plt.title(f"Distribution of Conversation Types - Threshold: {conversation_type_threshold:.2f} min")
-    plt.ylabel("Count")
-    plt.xlabel("Conversation Type")
-    plt.grid(axis='y', linestyle='--', alpha=0.7)
-    plt.tight_layout()
-    plt.show()
-
 def plot_response_delay(conversation_type):
     times = [utils.get_response_delay(conversation_type) for _ in range(10000)]
     avg, med, mi, ma = np.mean(times), np.median(times), min(times), max(times)
@@ -118,5 +118,5 @@ def plot_response_delay(conversation_type):
 if __name__=="__main__":
     #plot_inter_conversation_time(min_time=INTER_CONVERSATION_TIME_MINIMUM, max_time=INTER_CONVERSATION_TIME_MAXIMUM, exponent=INTER_CONVERSATION_TIME_EXPONENT)
     # Only once:
-    plot_expected_messages_per_conversation()
+    plot_bursty_consecutive_messages()
     

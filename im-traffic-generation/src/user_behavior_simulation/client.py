@@ -43,6 +43,7 @@ class Client:
         
         message_content = json.loads(received_message)
         conversation_id = message_content.get("conversationId")
+        message_burst_block_id = message_content.get("messageBurstBlockId")
         message_text = message_content.get("additionalText")
         
         print(f"📩 Received Message [{sender} -> {self.client_id}] [Conv: {conversation_id}] --- {message_text}")
@@ -59,31 +60,60 @@ class Client:
         self.ongoing_conversations[conversation_id]["messages_exchanged"] = int(self.ongoing_conversations[conversation_id]["messages_exchanged"]) + 1
         
         if int(self.ongoing_conversations[conversation_id]["messages_exchanged"]) >= int(self.ongoing_conversations[conversation_id]["expected_number_of_messages"]):
-            del self.ongoing_conversations[conversation_id]
+            del self.ongoing_conversations[conversation_id] 
         else:
-            await self._respond_to_message(sender, conversation_id)
+            last_id = str(self.ongoing_conversations[conversation_id].get("last_message_burst_block_id", "")).strip()
+            incoming_id = str(message_burst_block_id).strip()
+            if last_id != incoming_id:
+                self.ongoing_conversations[conversation_id]["last_message_burst_block_id"] = incoming_id
+                await self._respond_to_message(sender, conversation_id)
+            else:
+                print("Already responding to message from same burst block.")
+                
 
-    async def _send_message(self, recipient, text, conversation_id, conversation_type="sync", expected_number_of_messages=4):
+    async def _respond_to_message(self, sender, conversation_id):
+        """Respond to the received message."""
+        conversation_obj = self.ongoing_conversations[conversation_id]
+        conversation_type = conversation_obj["conversation_type"]
+        expected_number_of_messages = conversation_obj["expected_number_of_messages"]
+        delay = utils.get_response_delay() * 60 # min to sec
+        print(f"⏳ Delay until next Message [{self.client_id} -> {sender}] --- {delay:.2f}sec (ConvType: {conversation_type})")
+        metrics.log_response_time(self.client_id, sender, conversation_id, delay)
+        await asyncio.sleep(delay)
+        await self._send_message(sender, conversation_id, conversation_type, expected_number_of_messages)
+
+    async def _send_message(self, recipient, conversation_id, conversation_type="sync", expected_number_of_messages=4):
         """Send a message."""
-        message_content = {
-            "messageId": str(uuid.uuid4()),
-            "conversationId": conversation_id,
-            "conversationType": conversation_type,
-            "expectedNumberOfMessages": expected_number_of_messages,
-            "additionalText": text
-        }
-        websocket_transfer_obj = {
-            "command": "send",
-            "clientId": str(self.client_id),
-            "recipientId": str(recipient),
-            "message_content": json.dumps(message_content)
-        }
-        await self.websocket.send(json.dumps(websocket_transfer_obj))
-        self.ongoing_conversations[conversation_id]["messages_exchanged"] = int(self.ongoing_conversations[conversation_id]["messages_exchanged"]) + 1
-        print(f'📤 Sent Message [{self.client_id} -> {recipient}] --- Message number: {self.ongoing_conversations[conversation_id]["messages_exchanged"]}/{self.ongoing_conversations[conversation_id]["expected_number_of_messages"]}')
-        
-        if int(self.ongoing_conversations[conversation_id]["messages_exchanged"]) >= int(self.ongoing_conversations[conversation_id]["expected_number_of_messages"]):
-            self._end_conversation(recipient, conversation_id)
+        message_burst_block_id = str(uuid.uuid4()) 
+        message_burst_block_size = utils.get_bursty_consecutive_messages()
+        for i in range(message_burst_block_size): 
+            message_size = utils.get_message_size()
+            message_text = messaging.generate_message_text(message_size)
+            message_content = {
+                "messageId": str(uuid.uuid4()),
+                "messageBurstBlockId": message_burst_block_id,
+                "conversationId": conversation_id,
+                "conversationType": conversation_type,
+                "expectedNumberOfMessages": expected_number_of_messages,
+                "additionalText": message_text
+            }
+            websocket_transfer_obj = {
+                "command": "send",
+                "clientId": str(self.client_id),
+                "recipientId": str(recipient),
+                "message_content": json.dumps(message_content)
+            }
+            await self.websocket.send(json.dumps(websocket_transfer_obj))
+            self.ongoing_conversations[conversation_id]["messages_exchanged"] = int(self.ongoing_conversations[conversation_id]["messages_exchanged"]) + 1
+            print(f'📤 Sent Message [{self.client_id} -> {recipient}] --- Message number: {self.ongoing_conversations[conversation_id]["messages_exchanged"]}/{self.ongoing_conversations[conversation_id]["expected_number_of_messages"]}')
+            
+            if int(self.ongoing_conversations[conversation_id]["messages_exchanged"]) >= int(self.ongoing_conversations[conversation_id]["expected_number_of_messages"]):
+                self._end_conversation(recipient, conversation_id)
+                return
+            
+            message_burst_block_delay_min = utils.get_bursty_message_delay()
+            message_burst_block_delay_sec = message_burst_block_delay_min * 60
+            await asyncio.sleep(message_burst_block_delay_sec)
 
     async def _simulate_behavior(self):
         """Randomly initiates conversations at different times."""
@@ -103,17 +133,6 @@ class Client:
         print(f"🛑 Ending conversation [{sender} -> {self.client_id}] --- Conv: {self.ongoing_conversations[conversation_id]}")
         del self.ongoing_conversations[conversation_id]
 
-    async def _respond_to_message(self, sender, conversation_id):
-        """Respond to the received message."""
-        conversation_obj = self.ongoing_conversations[conversation_id]
-        conversation_type = conversation_obj["conversation_type"]
-        expected_number_of_messages = conversation_obj["expected_number_of_messages"]
-        delay = utils.get_response_delay(conversation_type) * 60 # min to sec
-        print(f"⏳ Delay until next Message [{self.client_id} -> {sender}] --- {delay:.2f}sec (ConvType: {conversation_type})")
-        metrics.log_response_time(self.client_id, sender, conversation_id, delay)
-        await asyncio.sleep(delay)
-        await self._send_message(sender, f"Reply from {self.client_id}", conversation_id, conversation_type, expected_number_of_messages)
-
     async def _initiate_conversation(self, recipient, inter_conversation_time):
         """Initiate a new conversation."""
         conversation_id = conversation.generate_conversation_id(self.client_id, recipient)
@@ -124,7 +143,7 @@ class Client:
         print(f"📢 Initiating conversation [{self.client_id} -> {recipient}] --- Conv: {self.ongoing_conversations[conversation_id]}")
         metrics.log_inter_conversation_time(self.client_id, recipient, conversation_id, inter_conversation_time)
     
-        await self._send_message(recipient, "START_CONVERSATION" , conversation_id, conversation_type, expected_number_of_messages)
+        await self._send_message(recipient, conversation_id, conversation_type, expected_number_of_messages)
 
     async def run(self):
         """Run the client, connecting and listening for messages."""

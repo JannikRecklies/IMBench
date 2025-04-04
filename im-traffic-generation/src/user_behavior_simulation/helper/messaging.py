@@ -1,5 +1,6 @@
-import uuid
 import json
+import random
+import string
 
 def extract_message_info(data):
     """Extract sender, conversation ID, message text, conversation type, and expected duration from the message_content."""
@@ -16,3 +17,11 @@ def extract_message_info(data):
 def is_relevant_message(data, client_id):
     """Check if the message is relevant to this client."""
     return data.get("event") == "message_received" and str(data["clientId"]) == str(client_id)
+
+
+def generate_message_text(target_bytes):
+    """Generate random text close to a given byte size using UTF-8 encoding."""
+    result = ''
+    while len(result.encode('utf-8')) < target_bytes:
+        result += random.choice(string.ascii_letters + string.digits + ' ')
+    return result

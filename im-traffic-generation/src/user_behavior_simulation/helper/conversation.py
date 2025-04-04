@@ -17,7 +17,8 @@ def create_conversation_obj(recipient, conversation_type="sync", expected_number
         "recipient": recipient,
         "conversation_type": conversation_type,
         "messages_exchanged": 0,
-        "expected_number_of_messages": expected_number_of_messages
+        "expected_number_of_messages": expected_number_of_messages,
+        "last_message_burst_block_id": None
     }
 
 def can_start_new_conversation(recipient, ongoing_conversations):
