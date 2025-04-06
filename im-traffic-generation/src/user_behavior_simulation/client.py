@@ -8,33 +8,57 @@ import user_behavior_simulation.helper.messaging as messaging
 import user_behavior_simulation.helper.conversation as conversation
 import user_behavior_simulation.helper.metrics as metrics
 import user_behavior_simulation.helper.utils as utils
+import redis
 
-INTER_CONVERSATION_TIME_MINIMUM = float(os.getenv("INTER_CONVERSATION_TIME_MINIMUM", 0.1))
-INTER_CONVERSATION_TIME_MAXIMUM = float(os.getenv("INTER_CONVERSATION_TIME_MAXIMUM", 120))
-INTER_CONVERSATION_TIME_EXPONENT = float(os.getenv("INTER_CONVERSATION_TIME_EXPONENT", 0.5))
+REDIS_HOST = str(os.getenv("REDIS_HOST", "localhost"))
+REDIS_PORT = str(os.getenv("REDIS_PORT", 6379))
 
 class Client:
     def __init__(self, client_id, connections, ws_uri):
         self.client_id = str(client_id)
         self.connections = connections
         self.ws_uri = ws_uri
-        self.websocket = None
+        self.redis_pub = None
+        self.redis_sub = None
+        self.pubsub = None
+        self.loop = None  # Will be set in run()
         self.ongoing_conversations = {}
 
     async def _connect(self):
-        """Connect to the WebSocket server."""
-        self.websocket = await websockets.connect(self.ws_uri, ping_interval=None)
-        await self.websocket.send(json.dumps({"command": "register", "clientId": str(self.client_id)}))
-        print(f"✅ Connected Client {self.client_id}.")
+        # Initialize Redis publisher and subscriber
+        self.redis_pub = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
+        self.redis_sub = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
+        self.pubsub = self.redis_sub.pubsub()
 
-    async def _listen_for_messages(self):
-        """Listen for incoming messages and schedule responses."""
-        async for message in self.websocket:
-            await self._handle_message(message)
+        # Register this client by publishing a message to TS
+        self.redis_pub.publish("register-client", json.dumps({
+            "command": "register",
+            "clientId": self.client_id
+        }))
+        print(f"✅ Published registration to channel py:client:{self.client_id}")
 
-    async def _handle_message(self, message):
+        # Just subscribe, no need to await or yield
+        self.pubsub.subscribe(**{f"ts:client:{self.client_id}": self._redis_handler})
+        print(f"✅ Subscribed to channel ts:client:{self.client_id}")
+        self.pubsub.run_in_thread(sleep_time=0.001)
+
+    def _redis_handler(self, message):
+        """Handles messages from Redis PubSub in a thread."""
+        if message["type"] != "message":
+            return
+        try:
+            payload = json.loads(message["data"])
+            print(f"📩 Redis message for {self.client_id}: {payload}")
+            asyncio.run_coroutine_threadsafe(self._handle_message(payload), self.loop)
+        except Exception as e:
+            print(f"❌ Error handling message for {self.client_id}: {e}")
+
+    def send_to_ts(self, data: dict):
+        self.redis_pub.publish(f"py:client:{self.client_id}", json.dumps(data))
+        print(f"📤 Sent to TS [py:client:{self.client_id}] -> {data}")
+
+    async def _handle_message(self, data: dict):
         """Handle a received message."""
-        data = json.loads(message)
         if not messaging.is_relevant_message(data, self.client_id):
             return
 
@@ -104,7 +128,7 @@ class Client:
                 "recipientId": str(recipient),
                 "message_content": json.dumps(message_content)
             }
-            await self.websocket.send(json.dumps(websocket_transfer_obj))
+            self.send_to_ts(websocket_transfer_obj)
             self.ongoing_conversations[conversation_id]["messages_exchanged"] = int(self.ongoing_conversations[conversation_id]["messages_exchanged"]) + 1
             print(f'📤 Sent Message [{self.client_id} -> {recipient}] --- Conv: {conversation_id} --- Message number: {self.ongoing_conversations[conversation_id]["messages_exchanged"]}/{self.ongoing_conversations[conversation_id]["expected_number_of_messages"]}')
             
@@ -149,7 +173,7 @@ class Client:
 
     async def run(self):
         """Run the client, connecting and listening for messages."""
+        self.loop = asyncio.get_event_loop()
         await self._connect()
-        asyncio.create_task(self._listen_for_messages())
         asyncio.create_task(self._simulate_behavior())
-        await asyncio.Future()
+        await asyncio.Future()  # Keeps it alive

@@ -23,7 +23,7 @@ def create_clients_from_graph():
         clients[node] = Client(client_id=node, connections=connections, ws_uri=WEBSOCKET_URI)
     return clients
 
-def start_client(client):
+def start_client(client: Client):
     """Runs each client as a separate async thread."""
     asyncio.run(client.run())
 

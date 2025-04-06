@@ -12,6 +12,14 @@ IMBench is a benchmarking framework designed to evaluate instant messaging (IM) 
 
 ## **Distributed setup with docker**
 
+### **📊 Message broker (Redis)**
+Used for relaying messages such as sending/receiving messages, registration events, and control commands during simulations.
+
+#### **Install & Run Redis**
+```sh
+docker run -d --name=redis -p 6379:6379 redis
+```
+
 ### **📊 Database (InfluxDB)**
 Stores benchmarking data (latency, message rates, CPU usage).
 

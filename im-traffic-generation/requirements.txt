@@ -6,3 +6,4 @@ pandas
 scipy
 websockets
 influxdb-client
+redis
