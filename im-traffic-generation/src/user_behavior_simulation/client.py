@@ -8,57 +8,83 @@ import user_behavior_simulation.helper.messaging as messaging
 import user_behavior_simulation.helper.conversation as conversation
 import user_behavior_simulation.helper.metrics as metrics
 import user_behavior_simulation.helper.utils as utils
-import redis
+from aio_pika import connect_robust, Message, ExchangeType, IncomingMessage
 
-REDIS_HOST = str(os.getenv("REDIS_HOST", "localhost"))
-REDIS_PORT = str(os.getenv("REDIS_PORT", 6379))
+RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost/")
+EXCHANGE_NAME = "imbench_exchange"
 
 class Client:
     def __init__(self, client_id, connections, ws_uri):
         self.client_id = str(client_id)
         self.connections = connections
-        self.ws_uri = ws_uri
-        self.redis_pub = None
-        self.redis_sub = None
-        self.pubsub = None
-        self.loop = None  # Will be set in run()
         self.ongoing_conversations = {}
+        self.message_tasks = {}  # maps conversation_id → asyncio.Task
         self.last_conversation_start_timestamp = time.time()
+        self.loop = None
+        self.channel = None
+        self.exchange = None
+        self.queue = None
 
     async def _connect(self):
-        # Initialize Redis publisher and subscriber
-        self.redis_pub = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
-        self.redis_sub = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
-        self.pubsub = self.redis_sub.pubsub()
+        # 1. Connect to RabbitMQ
+        connection = await connect_robust(RABBITMQ_URL)
+        self.channel = await connection.channel()
+        # await self.channel.set_qos(prefetch_count=1)
 
-        # Register this client by publishing a message to TS
-        self.redis_pub.publish("register-client", json.dumps({
-            "command": "register",
-            "clientId": self.client_id
-        }))
-        print(f"✅ Published registration to channel py:client:{self.client_id}")
+        # 2. Declare an exchange (fanout, direct, topic, etc.)
+        self.exchange = await self.channel.declare_exchange(EXCHANGE_NAME, ExchangeType.TOPIC)
 
-        # Just subscribe, no need to await or yield
-        self.pubsub.subscribe(**{f"ts:client:{self.client_id}": self._redis_handler})
-        print(f"✅ Subscribed to channel ts:client:{self.client_id}")
-        self.pubsub.run_in_thread(sleep_time=0.001)
+        # 3. Declare a queue for this client
+        self.queue = await self.channel.declare_queue(f"py_client_{self.client_id}", durable=True)
+        await self.queue.bind(self.exchange, routing_key=f"ts.client.{self.client_id}")
+        await self.queue.purge() # 🔥 Deletes all unconsumed messages in this queue from previous runs
 
-    def _redis_handler(self, message):
-        """Handles messages from Redis PubSub in a thread."""
-        if message["type"] != "message":
-            return
+        # 4. Start consuming messages
+        await self.queue.consume(self._rabbitmq_handler, no_ack=False)
+
+        # 5. Register with TS (via publish)
+        await self.exchange.publish(
+            Message(
+                body=json.dumps({
+                    "command": "register",
+                    "clientId": self.client_id
+                }).encode()
+            ),
+            routing_key="py.register"
+        )
+
+        print(f"✅ Client {self.client_id} connected and listening on ts.client.{self.client_id}")
+
+    async def _rabbitmq_handler(self, message: IncomingMessage):
         try:
-            payload = json.loads(message["data"])
-            print(f"📩 Redis message for {self.client_id}: {payload}")
-            asyncio.run_coroutine_threadsafe(self._handle_message(payload), self.loop)
+            payload = json.loads(message.body.decode())
+            # print(f"📩 Received RabbitMQ message for {self.client_id}: {payload}")
+            self._handle_message(payload)
         except Exception as e:
-            print(f"❌ Error handling message for {self.client_id}: {e}")
+            print(f"❌ Failed to parse message: {e}")
+            await message.nack(requeue=False)  # Don't requeue broken payloads
+    
+    async def _handle_and_ack(self, message: IncomingMessage, payload):
+        try:
+            await self._handle_message(payload)
+            await message.ack()
+        except Exception as e:
+            print(f"❌ Error handling message in background task: {e}")
+            await message.nack(requeue=False)
 
-    def send_to_ts(self, data: dict):
-        self.redis_pub.publish(f"py:client:{self.client_id}", json.dumps(data))
-        print(f"📤 Sent to TS [py:client:{self.client_id}] -> {data}")
+    async def send_to_ts(self, data: dict):
+        """Send message to TS via RabbitMQ."""
+        if self.exchange is None:
+            print("❌ Cannot send message: exchange not ready.")
+            return
 
-    async def _handle_message(self, data: dict):
+        await self.exchange.publish(
+            Message(body=json.dumps(data).encode()),
+            routing_key=f"py.client.{self.client_id}"
+        )
+        # print(f"📤 Sent to TS [py.client.{self.client_id}] -> {data}")
+
+    def _handle_message(self, data: dict):
         """Handle a received message."""
         if not messaging.is_relevant_message(data, self.client_id):
             return
@@ -90,13 +116,23 @@ class Client:
         
         if int(self.ongoing_conversations[conversation_id]["messages_exchanged"]) >= int(self.ongoing_conversations[conversation_id]["expected_number_of_messages"]):
             print(f"🛑 Deleting conversation from memory [{sender} -> {self.client_id}]")
-            del self.ongoing_conversations[conversation_id] 
+
+            # Cancel the associated async task if it's still running
+            task = self.message_tasks.get(conversation_id)
+            if task and not task.done():
+                print(f"🧹 Cancelling async task for conversation: {conversation_id}")
+                task.cancel()
+            
+            # Cleanup
+            self.message_tasks.pop(conversation_id, None)
+            self.ongoing_conversations.pop(conversation_id, None)
         else:
             last_id = str(self.ongoing_conversations[conversation_id].get("last_message_burst_block_id", "")).strip()
             incoming_id = str(message_burst_block_id).strip()
             if last_id != incoming_id:
                 self.ongoing_conversations[conversation_id]["last_message_burst_block_id"] = incoming_id
-                await self._respond_to_message(sender, conversation_id)
+                task = asyncio.create_task(self._respond_to_message(sender, conversation_id))
+                self.message_tasks[conversation_id] = task
             else:
                 print("Already responding to message from same burst block.")
                 
@@ -111,7 +147,8 @@ class Client:
         print(f"⏳ Delay until next Message [{self.client_id} -> {sender}] --- Conv: {conversation_id} --- {delay:.2f}sec")
         metrics.log_response_time(self.client_id, sender, conversation_id, delay)
         await asyncio.sleep(delay)
-        await self._send_message(sender, conversation_id, conversation_type, expected_number_of_messages)
+        if conversation_id in self.ongoing_conversations: # Fail safe mechanism in case conversation got stopped/deleted in the meantime
+            await self._send_message(sender, conversation_id, conversation_type, expected_number_of_messages)
 
     async def _send_message(self, recipient, conversation_id, conversation_type="sync", expected_number_of_messages=4):
         """Send a message."""
@@ -134,12 +171,12 @@ class Client:
                 "recipientId": str(recipient),
                 "message_content": json.dumps(message_content)
             }
-            self.send_to_ts(websocket_transfer_obj)
+            await self.send_to_ts(websocket_transfer_obj)
             self.ongoing_conversations[conversation_id]["messages_exchanged"] = int(self.ongoing_conversations[conversation_id]["messages_exchanged"]) + 1
-            print(f'📤 Sent Message [{self.client_id} -> {recipient}] --- Conv: {conversation_id} --- Message number: {self.ongoing_conversations[conversation_id]["messages_exchanged"]}/{self.ongoing_conversations[conversation_id]["expected_number_of_messages"]}')
+            print(f'📤 Sending Message [{self.client_id} -> {recipient}] --- Conv: {conversation_id} --- Message number: {self.ongoing_conversations[conversation_id]["messages_exchanged"]}/{self.ongoing_conversations[conversation_id]["expected_number_of_messages"]}')
             
             if int(self.ongoing_conversations[conversation_id]["messages_exchanged"]) >= int(self.ongoing_conversations[conversation_id]["expected_number_of_messages"]):
-                print(f"\n🛑 Store metadata of conversation and delete it from memory [{recipient} -> {self.client_id}] --- Conv: {self.ongoing_conversations[conversation_id]}")
+                print(f"\n🛑 Store metadata of conversation and delete it from memory [{self.client_id} -> {recipient}] --- Conv: {self.ongoing_conversations[conversation_id]}")
                 self._log_end_of_conversation(recipient, conversation_id)
                 del self.ongoing_conversations[conversation_id]
                 return

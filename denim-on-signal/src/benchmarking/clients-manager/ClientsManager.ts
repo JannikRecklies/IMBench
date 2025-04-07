@@ -1,61 +1,73 @@
-import { createClient } from 'redis';
-import Constants = require('../../helper/Constants');
+import amqp from 'amqplib';
 import { ClientWrapper } from './ClientWrapper';
+import Constants = require('../../helper/Constants');
 
 const logger = require('../../helper/Logger').getLogger("ClientManager", Constants.LOGLEVEL);
 
-const redisHost = process.env.REDIS_HOST || 'localhost';
-const redisPort = Number(process.env.REDIS_PORT || 6379);
+const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://host.docker.internal';
+const EXCHANGE_NAME = 'imbench_exchange';
+const DENIM_SERVER_URL = process.env.DENIM_SERVER_URL || "wss://host.docker.internal:8080";
 
-const redisGlobalPub = createClient({ socket: { host: redisHost, port: redisPort } });
+const clients: { [key: string]: ClientWrapper } = {};
 
 async function main() {
-    await redisGlobalPub.connect();
+  const conn = await amqp.connect(RABBITMQ_URL);
+  const channel = await conn.createChannel();
 
-    const clients: { [key: string]: ClientWrapper } = {};
-    const DENIM_SERVER_URL: string = process.env.DENIM_SERVER_URL || "wss://host.docker.internal:8080";
+  // Declare a topic exchange
+  await channel.assertExchange(EXCHANGE_NAME, 'topic', { durable: false });
 
-    // Subscribe to global control channel to register clients
-    const redisControlSub = createClient({ socket: { host: redisHost, port: redisPort } });
-    await redisControlSub.connect();
+  // Create an exclusive queue for registration messages from Python
+  const { queue: registrationQueue } = await channel.assertQueue('', { exclusive: true });
+  await channel.bindQueue(registrationQueue, EXCHANGE_NAME, 'py.register');
 
-    await redisControlSub.subscribe("register-client", async (message) => {
-        const { command, clientId } = JSON.parse(message);
+  // Listen for registration messages
+  channel.consume(registrationQueue, async (msg) => {
+    if (!msg) return;
 
-        if (command === "register" && !(clientId in clients)) {
-            logger.info(`📥 Registering client ${clientId}`);
+    const { command, clientId } = JSON.parse(msg.content.toString());
+    if (command === "register" && !(clientId in clients)) {
+      logger.info(`📥 Registering client ${clientId}`);
+      clients[clientId] = new ClientWrapper(clientId, undefined, DENIM_SERVER_URL);
+      await clients[clientId].initialize();
 
-            clients[clientId] = new ClientWrapper(clientId, undefined, DENIM_SERVER_URL);
-            await clients[clientId].initialize();
+      // Create an exclusive queue for this client’s messages from Python
+      const { queue: clientQueue } = await channel.assertQueue('', { exclusive: true });
+      await channel.bindQueue(clientQueue, EXCHANGE_NAME, `py.client.${clientId}`);
 
-            // Subscribe to messages for this specific client
-            const redisClientSub = createClient({ socket: { host: redisHost, port: redisPort } });
-            await redisClientSub.connect();
-            await redisClientSub.subscribe(`py:client:${clientId}`, async (msg) => {
-                const { command, recipientId, message_content } = JSON.parse(msg);
+      // Listen for Python → TS messages for this client
+      channel.consume(clientQueue, async (msg) => {
+        if (!msg) return;
 
-                if (command === "send") {
-                    logger.info(`📤 Send message request [${clientId} → ${recipientId}]: ${message_content}`);
-                    clients[clientId]?.sendMessage(String(message_content), String(recipientId));
-                }
-            });
-
-            // Handle incoming Denim messages
-            clients[clientId].on("message", (data) => {
-                logger.info(`📩 Client ${clientId} received message: ${data.message}`);
-                const payload = {
-                    event: "message_received",
-                    clientId,
-                    sender: data.sender,
-                    message_content: data.message,
-                    timestamp: Date.now()
-                };
-                redisGlobalPub.publish(`ts:client:${clientId}`, JSON.stringify(payload));
-            });
+        const { command, recipientId, message_content } = JSON.parse(msg.content.toString());
+        if (command === "send") {
+          logger.info(`📤 Send message request [${clientId} → ${recipientId}]: ${message_content}`);
+          clients[clientId]?.sendMessage(message_content, recipientId);
         }
-    });
+
+        channel.ack(msg);
+      });
+
+      // Handle TS → Python messages from Denim client
+      clients[clientId].on("message", async (data) => {
+        const payload = {
+          event: "message_received",
+          clientId,
+          sender: data.sender,
+          message_content: data.message,
+          timestamp: Date.now()
+        };
+
+        channel.publish(EXCHANGE_NAME, `ts.client.${clientId}`, Buffer.from(JSON.stringify(payload)));
+      });
+    }
+
+    channel.ack(msg);
+  });
+
+  logger.info("✅ RabbitMQ Client Manager is ready.");
 }
 
 main().catch((err) => {
-    console.error("❌ Failed to start client manager:", err);
+  console.error("❌ Failed to start client manager:", err);
 });

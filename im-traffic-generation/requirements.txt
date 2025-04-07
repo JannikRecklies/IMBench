@@ -7,3 +7,4 @@ scipy
 websockets
 influxdb-client
 redis
+aio-pika

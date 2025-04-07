@@ -15,6 +15,14 @@ IMBench is a benchmarking framework designed to evaluate instant messaging (IM) 
 ### **📊 Message broker (Redis)**
 Used for relaying messages such as sending/receiving messages, registration events, and control commands during simulations.
 
+#### **Install & Run RabbitMq**
+```sh
+docker run -d --hostname rabbitmq \
+  --name rabbitmq \
+  -p 5672:5672 \
+  -p 15672:15672 \
+  rabbitmq:3-management
+```
 #### **Install & Run Redis**
 ```sh
 docker run -d --name=redis -p 6379:6379 redis
