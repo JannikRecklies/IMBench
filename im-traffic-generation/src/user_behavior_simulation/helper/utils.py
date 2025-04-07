@@ -40,11 +40,13 @@ messages_per_conversation_lognorm_distr = distributions.create_lognormal_distrib
 bursty_message_delay_lognorm_distr = distributions.create_lognormal_distribution(mode=BURSTY_MESSAGE_DELAY_MODE, min_value=BURSTY_MESSAGE_DELAY_MINIMUM, max_value=BURSTY_MESSAGE_DELAY_MAXIMUM)
 text_size_distr = distributions.create_lognormal_distribution(TEXT_SIZE_MODE, TEXT_SIZE_MINIMUM, TEXT_SIZE_MAXIMUM)
 
-def get_response_delay():
-    if random.random() < SYNC_TO_ASYNC_CONVERSATION_RATIO:
+def get_response_delay(conversation_type="sync"):
+    if conversation_type == "sync":
         return distributions.generate_lognormal_value(sync_conversation_response_time_lognorm_distr, SYNC_CONVERSATION_RESPONSE_TIME_MINIMUM, SYNC_CONVERSATION_RESPONSE_TIME_MAXIMUM)
-    else:
+    elif conversation_type == "async":
         return distributions.generate_lognormal_value(async_conversation_response_time_lognorm_distr, ASYNC_CONVERSATION_RESPONSE_TIME_MINIMUM, ASYNC_CONVERSATION_RESPONSE_TIME_MAXIMUM)
+    else:
+        1.0 # Minute
 
 def get_conversation_type():
     return "sync" if random.random() < SYNC_TO_ASYNC_CONVERSATION_RATIO else "async"

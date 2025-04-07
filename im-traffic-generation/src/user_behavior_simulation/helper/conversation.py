@@ -24,7 +24,7 @@ def create_conversation_obj(recipient, conversation_type="sync", expected_number
 def can_start_new_conversation(recipient, ongoing_conversations):
     """Check if a new conversation can be started with the recipient."""
     ongoing = any(str(conv["recipient"]) == str(recipient) for conv in ongoing_conversations.values())
-    return recipient and not ongoing
+    return recipient and not ongoing and len(ongoing_conversations.values()) <= 5
 
 def is_end_of_conversation_message(message_text, conversation_id, ongoing_conversations):
     """Handle conversation end acknowledgment."""

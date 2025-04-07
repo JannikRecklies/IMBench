@@ -8,8 +8,6 @@ from social_graph_generation.social_graph_generator import generate_hk_graph, as
 WEBSOCKET_URI = "ws://127.0.0.1:8081"
 NUMBER_CLIENTS = 100
 
-
-
 def create_clients_from_graph():
     """Generates a social graph and initializes clients based on it."""
     G = generate_hk_graph(n=NUMBER_CLIENTS)

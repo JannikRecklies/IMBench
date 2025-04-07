@@ -4,10 +4,10 @@ import numpy as np
 import os
 
 # ========== Configuration ==========
-INFLUX_URL = "http://localhost:8086"
-INFLUX_TOKEN = "uZa-erdN8bdeXUFO5e08zq2EjkX3vyW5R-Vu9SdlEFS94mJOsWSDuktlGpyCZgZ2E3ix5mzS74cmqiJKPoEKmg=="
-INFLUX_ORG = "imbench"
-INFLUX_BUCKET = "imbench"
+INFLUX_URL = os.getenv("INFLUX_URL", "http://localhost:8086")
+INFLUX_TOKEN = os.getenv("INFLUX_TOKEN", "uZa-erdN8bdeXUFO5e08zq2EjkX3vyW5R-Vu9SdlEFS94mJOsWSDuktlGpyCZgZ2E3ix5mzS74cmqiJKPoEKmg==")
+INFLUX_ORG = os.getenv("INFLUX_ORG", "imbench")
+INFLUX_BUCKET = os.getenv("INFLUX_BUCKET", "imbench")
 PLOT_DIR = "plots"
 os.makedirs(PLOT_DIR, exist_ok=True)
 
@@ -80,4 +80,15 @@ if __name__ == "__main__":
             xlabel="Conversation Duration (minutes)",
             filename="conversation_duration.png",
             bin_size=1
+        )
+    
+    # Plot Conversation Duration (in minutes)
+    durations = query_influx("inter_conversation_time")
+    if durations:
+        plot_histogram(
+            durations,
+            title="Distribution of Inter-Conversation Times",
+            xlabel="Inter-Conversation Time (seconds)",
+            filename="inter_conversation_time.png",
+            bin_size=30
         )
