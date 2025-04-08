@@ -20,10 +20,11 @@ let writeApi: WriteApi;
 function createWriteApi() {
     try {
         const influx = new InfluxDB({ url: INFLUX_URL, token: INFLUX_TOKEN });
-        // Configure batching (e.g., flush every 5s or when 100 points are queued)
+        // Configure batching (e.g., flush every 30s or when 100 points are queued)
         writeApi = influx.getWriteApi(INFLUX_ORG, INFLUX_BUCKET, "ns", {
             batchSize: 100,
-            flushInterval: 5000,
+            flushInterval: 30000,
+            retryJitter: 3000
         });
         logger.info("✅ Successfully connected to InfluxDB");
     } catch (error) {

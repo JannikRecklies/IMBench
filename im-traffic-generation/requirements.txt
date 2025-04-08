@@ -6,5 +6,7 @@ pandas
 scipy
 websockets
 influxdb-client
+influxdb-client[async]
 redis
 aio-pika
+aiohttp

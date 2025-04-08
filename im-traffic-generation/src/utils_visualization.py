@@ -106,13 +106,9 @@ def plot_response_delay_async():
     )
 
 if __name__ == "__main__":
-    message_burst_block_size = utils.get_bursty_consecutive_messages()
-    for i in range(message_burst_block_size): 
-        print(f"{i}/{message_burst_block_size}")
-    if False:
-        plot_inter_conversation_time()
-        plot_bursty_consecutive_messages()
-        plot_bursty_consecutive_message_delay()
-        plot_expected_messages_per_conversation()
-        plot_response_delay_sync()
-        plot_response_delay_async()
+    plot_inter_conversation_time()
+    plot_bursty_consecutive_messages()
+    plot_bursty_consecutive_message_delay()
+    plot_expected_messages_per_conversation()
+    plot_response_delay_sync()
+    plot_response_delay_async()

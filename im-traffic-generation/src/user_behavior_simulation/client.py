@@ -1,5 +1,7 @@
 import asyncio
+import logging
 import os
+from datetime import datetime
 import uuid
 import websockets
 import json
@@ -9,6 +11,21 @@ import user_behavior_simulation.helper.conversation as conversation
 import user_behavior_simulation.helper.metrics as metrics
 import user_behavior_simulation.helper.utils as utils
 from aio_pika import connect_robust, Message, ExchangeType, IncomingMessage
+
+log_dir = "logs"
+os.makedirs(log_dir, exist_ok=True)
+
+log_file = os.path.join(log_dir, f"debug_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log")
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler(log_file),
+        logging.StreamHandler()  # Still shows logs in VSCode terminal
+    ]
+)
+
 
 RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost/")
 EXCHANGE_NAME = "imbench_exchange"
@@ -53,36 +70,36 @@ class Client:
             routing_key="py.register"
         )
 
-        print(f"✅ Client {self.client_id} connected and listening on ts.client.{self.client_id}")
+        logging.info(f"✅ Client {self.client_id} connected and listening on ts.client.{self.client_id}")
 
     async def _rabbitmq_handler(self, message: IncomingMessage):
         try:
             payload = json.loads(message.body.decode())
-            # print(f"📩 Received RabbitMQ message for {self.client_id}: {payload}")
+            # logging.info(f"📩 Received RabbitMQ message for {self.client_id}: {payload}")
             self._handle_message(payload)
         except Exception as e:
-            print(f"❌ Failed to parse message: {e}")
+            logging.info(f"❌ Failed to parse message: {e}")
             await message.nack(requeue=False)  # Don't requeue broken payloads
     
     async def _handle_and_ack(self, message: IncomingMessage, payload):
         try:
-            await self._handle_message(payload)
+            self._handle_message(payload)
             await message.ack()
         except Exception as e:
-            print(f"❌ Error handling message in background task: {e}")
+            logging.info(f"❌ Error handling message in background task: {e}")
             await message.nack(requeue=False)
 
     async def send_to_ts(self, data: dict):
         """Send message to TS via RabbitMQ."""
         if self.exchange is None:
-            print("❌ Cannot send message: exchange not ready.")
+            logging.info("❌ Cannot send message: exchange not ready.")
             return
 
         await self.exchange.publish(
             Message(body=json.dumps(data).encode()),
             routing_key=f"py.client.{self.client_id}"
         )
-        # print(f"📤 Sent to TS [py.client.{self.client_id}] -> {data}")
+        # logging.info(f"📤 Sent to TS [py.client.{self.client_id}] -> {data}")
 
     def _handle_message(self, data: dict):
         """Handle a received message."""
@@ -106,21 +123,21 @@ class Client:
             inter_conversation_time = time.time() - self.last_conversation_start_timestamp
             metrics.log_inter_conversation_time(self.client_id, sender, conversation_id, inter_conversation_time)
             self.last_conversation_start_timestamp = time.time()
-            # print(f"🆕 Received start of new conversation [{sender} -> {self.client_id}] [Conv: {conversation_id}] (Type: {conversation_type}, expected_number_of_messages: {expected_number_of_messages}s)")
+            # logging.info(f"🆕 Received start of new conversation [{sender} -> {self.client_id}] [Conv: {conversation_id}] (Type: {conversation_type}, expected_number_of_messages: {expected_number_of_messages}s)")
         
         # Update the conversation object
         self.ongoing_conversations[conversation_id]["last_message_time"] = time.time()
         self.ongoing_conversations[conversation_id]["messages_exchanged"] = int(self.ongoing_conversations[conversation_id]["messages_exchanged"]) + 1
         
-        print(f'📩 Received Message [{sender} -> {self.client_id}] --- Conv: {conversation_id} --- Message number: {self.ongoing_conversations[conversation_id]["messages_exchanged"]}/{self.ongoing_conversations[conversation_id]["expected_number_of_messages"]}')
+        logging.info(f'📩 Received Message [{sender} -> {self.client_id}] --- Conv: {conversation_id} --- Message number: {self.ongoing_conversations[conversation_id]["messages_exchanged"]}/{self.ongoing_conversations[conversation_id]["expected_number_of_messages"]}')
         
-        if int(self.ongoing_conversations[conversation_id]["messages_exchanged"]) >= int(self.ongoing_conversations[conversation_id]["expected_number_of_messages"]):
-            print(f"🛑 Deleting conversation from memory [{sender} -> {self.client_id}]")
+        if int(self.ongoing_conversations[conversation_id]["messages_exchanged"]) >= int(self.ongoing_conversations[conversation_id]["expected_number_of_messages"]) or message_text == "END_CONVERSATION":
+            logging.info(f"🛑 Deleting conversation from memory [{sender} -> {self.client_id}]")
 
             # Cancel the associated async task if it's still running
             task = self.message_tasks.get(conversation_id)
             if task and not task.done():
-                print(f"🧹 Cancelling async task for conversation: {conversation_id}")
+                logging.info(f"🧹 Cancelling async task for conversation: {conversation_id}")
                 task.cancel()
             
             # Cleanup
@@ -129,12 +146,12 @@ class Client:
         else:
             last_id = str(self.ongoing_conversations[conversation_id].get("last_message_burst_block_id", "")).strip()
             incoming_id = str(message_burst_block_id).strip()
-            if last_id != incoming_id:
+            if last_id != incoming_id and conversation_id not in self.message_tasks:
                 self.ongoing_conversations[conversation_id]["last_message_burst_block_id"] = incoming_id
                 task = asyncio.create_task(self._respond_to_message(sender, conversation_id))
                 self.message_tasks[conversation_id] = task
             else:
-                print("Already responding to message from same burst block.")
+                logging.info("Already responding to message from same burst block.")
                 
 
     async def _respond_to_message(self, sender, conversation_id):
@@ -144,19 +161,32 @@ class Client:
         expected_number_of_messages = conversation_obj["expected_number_of_messages"]
         conversation_type = utils.get_conversation_type()
         delay = utils.get_response_delay(conversation_type) * 60 # min to sec
-        print(f"⏳ Delay until next Message [{self.client_id} -> {sender}] --- Conv: {conversation_id} --- {delay:.2f}sec")
-        metrics.log_response_time(self.client_id, sender, conversation_id, delay)
+        logging.info(f"⏳ Delay until next Message [{self.client_id} -> {sender}] --- Conv: {conversation_id} --- {delay:.2f}sec")
         await asyncio.sleep(delay)
         if conversation_id in self.ongoing_conversations: # Fail safe mechanism in case conversation got stopped/deleted in the meantime
+            metrics.log_response_time(self.client_id, sender, conversation_id, delay)
             await self._send_message(sender, conversation_id, conversation_type, expected_number_of_messages)
 
     async def _send_message(self, recipient, conversation_id, conversation_type="sync", expected_number_of_messages=4):
-        """Send a message."""
-        message_burst_block_id = str(uuid.uuid4()) 
-        message_burst_block_size = utils.get_bursty_consecutive_messages()
-        for i in range(message_burst_block_size): 
-            message_size = utils.get_message_size()
-            message_text = messaging.generate_message_text(message_size)
+        """Send a burst block of messages in a conversation."""
+        message_burst_block_id = str(uuid.uuid4())
+        burst_size = utils.get_bursty_consecutive_messages()
+        # burst_size = 1
+
+        for i in range(burst_size):
+            if conversation_id not in self.ongoing_conversations:
+                break  # Fail-safe: conversation may have ended
+
+            convo = self.ongoing_conversations[conversation_id]
+            convo["messages_exchanged"] += 1
+            message_index = convo["messages_exchanged"]
+            max_messages = convo["expected_number_of_messages"]
+
+            # Determine message content
+            is_last_message = message_index >= max_messages
+            message_text = "END_CONVERSATION" if is_last_message else messaging.generate_message_text(utils.get_message_size())
+
+            # Build message payload
             message_content = {
                 "messageId": str(uuid.uuid4()),
                 "messageBurstBlockId": message_burst_block_id,
@@ -165,25 +195,33 @@ class Client:
                 "expectedNumberOfMessages": expected_number_of_messages,
                 "additionalText": message_text
             }
-            websocket_transfer_obj = {
+
+            payload = {
                 "command": "send",
                 "clientId": str(self.client_id),
                 "recipientId": str(recipient),
                 "message_content": json.dumps(message_content)
             }
-            await self.send_to_ts(websocket_transfer_obj)
-            self.ongoing_conversations[conversation_id]["messages_exchanged"] = int(self.ongoing_conversations[conversation_id]["messages_exchanged"]) + 1
-            print(f'📤 Sending Message [{self.client_id} -> {recipient}] --- Conv: {conversation_id} --- Message number: {self.ongoing_conversations[conversation_id]["messages_exchanged"]}/{self.ongoing_conversations[conversation_id]["expected_number_of_messages"]}')
-            
-            if int(self.ongoing_conversations[conversation_id]["messages_exchanged"]) >= int(self.ongoing_conversations[conversation_id]["expected_number_of_messages"]):
-                print(f"\n🛑 Store metadata of conversation and delete it from memory [{self.client_id} -> {recipient}] --- Conv: {self.ongoing_conversations[conversation_id]}")
+
+            logging.info(f'📤 Sending Message [{self.client_id} -> {recipient}] — Conv: {conversation_id} — Message {message_index}/{max_messages} - Burst {i+1}/{burst_size}')
+            await self.send_to_ts(payload)
+
+            # Debug conversation state
+            ongoing_ids = " | ".join(self.ongoing_conversations.keys())
+            logging.info(f"[{self.client_id}] Active Conversations: {len(self.ongoing_conversations)} -> {ongoing_ids}")
+
+            # End condition
+            if is_last_message:
+                logging.info(f"\n🛑 Ending conversation [{self.client_id} -> {recipient}] — Conv: {convo}")
                 self._log_end_of_conversation(recipient, conversation_id)
                 del self.ongoing_conversations[conversation_id]
-                return
-            else:
-                message_burst_block_delay_min = utils.get_bursty_message_delay()
-                message_burst_block_delay_sec = message_burst_block_delay_min * 60
-                await asyncio.sleep(message_burst_block_delay_sec)
+                break
+
+            # Delay before next message in burst
+            delay_seconds = utils.get_bursty_message_delay() * 60
+            await asyncio.sleep(delay_seconds)
+        
+        self.message_tasks.pop(conversation_id, None)
 
     async def _simulate_behavior(self):
         """Randomly initiates conversations at different times."""
@@ -208,7 +246,7 @@ class Client:
         conversation_type = utils.get_conversation_type()
         
         self.ongoing_conversations[conversation_id] = conversation.create_conversation_obj(recipient, conversation_type, expected_number_of_messages)
-        print(f"📢 Initiating conversation [{self.client_id} -> {recipient}] --- Conv: {self.ongoing_conversations[conversation_id]}")
+        logging.info(f"📢 Initiating conversation [{self.client_id} -> {recipient}] --- Conv: {self.ongoing_conversations[conversation_id]}")
         inter_conversation_time = time.time() - self.last_conversation_start_timestamp
         metrics.log_inter_conversation_time(self.client_id, recipient, conversation_id, inter_conversation_time)
         self.last_conversation_start_timestamp = time.time()

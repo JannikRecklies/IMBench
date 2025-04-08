@@ -8,7 +8,7 @@ INFLUX_URL = os.getenv("INFLUX_URL", "http://localhost:8086")
 INFLUX_TOKEN = os.getenv("INFLUX_TOKEN", "uZa-erdN8bdeXUFO5e08zq2EjkX3vyW5R-Vu9SdlEFS94mJOsWSDuktlGpyCZgZ2E3ix5mzS74cmqiJKPoEKmg==")
 INFLUX_ORG = os.getenv("INFLUX_ORG", "imbench")
 INFLUX_BUCKET = os.getenv("INFLUX_BUCKET", "imbench")
-PLOT_DIR = "plots"
+PLOT_DIR = "plots/measured_behavior"
 os.makedirs(PLOT_DIR, exist_ok=True)
 
 # ========== InfluxDB Setup ==========
@@ -79,7 +79,7 @@ if __name__ == "__main__":
             title="Distribution of Conversation Duration",
             xlabel="Conversation Duration (minutes)",
             filename="conversation_duration.png",
-            bin_size=1
+            bin_size=5
         )
     
     # Plot Conversation Duration (in minutes)
@@ -90,5 +90,16 @@ if __name__ == "__main__":
             title="Distribution of Inter-Conversation Times",
             xlabel="Inter-Conversation Time (seconds)",
             filename="inter_conversation_time.png",
+            bin_size=30
+        )
+    
+    # Plot Conversation Duration (in seconds)
+    durations = query_influx("response_time")
+    if durations:
+        plot_histogram(
+            durations,
+            title="Distribution of Response Times",
+            xlabel="Response Time (seconds)",
+            filename="response_time.png",
             bin_size=30
         )

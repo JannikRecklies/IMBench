@@ -6,7 +6,7 @@ from user_behavior_simulation.client import Client
 from social_graph_generation.social_graph_generator import generate_hk_graph, assign_edge_weights
 
 WEBSOCKET_URI = "ws://127.0.0.1:8081"
-NUMBER_CLIENTS = 200
+NUMBER_CLIENTS = 50
 
 def create_clients_from_graph():
     """Generates a social graph and initializes clients based on it."""

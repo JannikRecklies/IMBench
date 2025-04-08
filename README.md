@@ -6,26 +6,23 @@ IMBench is a benchmarking framework designed to evaluate instant messaging (IM) 
 - **Node.js 16 (NVM Recommended)**
 - **Python 3.10+**
 - **InfluxDB for performance metrics**
+- **RabbitMQ for for reliable messaging between Behavior and IM Service**
 - **Grafana for visualization**
 
 ---
 
 ## **Distributed setup with docker**
 
-### **📊 Message broker (Redis)**
-Used for relaying messages such as sending/receiving messages, registration events, and control commands during simulations.
+### **📊 Message broker (RabbitMQ)**
+Acts as a reliable message broker to asynchronously exchange control and message data between the Python-based simulation and the TypeScript-based clients. Ensures that no messages are lost and supports scalable, decoupled communication.
 
-#### **Install & Run RabbitMq**
+#### **Install & Run RabbitMQ**
 ```sh
 docker run -d --hostname rabbitmq \
   --name rabbitmq \
   -p 5672:5672 \
   -p 15672:15672 \
   rabbitmq:3-management
-```
-#### **Install & Run Redis**
-```sh
-docker run -d --name=redis -p 6379:6379 redis
 ```
 
 ### **📊 Database (InfluxDB)**
