@@ -17,18 +17,19 @@ def plot_histogram(values, title, xlabel, filename, bin_size=5):
     median = np.median(values)
     min_val = min(values)
     max_val = max(values)
-    stats_text = f"Avg: {avg:.2f}\nMedian: {median:.2f}\nMin: {min_val:.2f}\nMax: {max_val:.2f}"
+    #stats_text = f"Avg: {avg:.2f}\nMedian: {median:.2f}\nMin: {min_val:.2f}\nMax: {max_val:.2f}"
+    stats_text = f"Avg: {avg:.2f}\nMedian: {median:.2f}"
 
     # Labels & Title
     plt.xlabel(xlabel)
-    plt.ylabel("Number of Conversations")
+    plt.ylabel("Frequency of Occurrence")
     plt.title(title)
 
     # Count labels on bars
-    counts, edges = np.histogram(values, bins=bins)
-    for i in range(len(counts)):
-        plt.text(edges[i] + bin_size / 2, counts[i], str(counts[i]),
-                 ha='center', va='bottom', fontsize=8)
+    #counts, edges = np.histogram(values, bins=bins)
+    #for i in range(len(counts)):
+    #    plt.text(edges[i] + bin_size / 2, counts[i], str(counts[i]),
+    #             ha='center', va='bottom', fontsize=8)
 
     # Stats box
     props = dict(boxstyle='round', facecolor='lightgray', alpha=0.7)
@@ -39,7 +40,7 @@ def plot_histogram(values, title, xlabel, filename, bin_size=5):
     plt.grid(True, linestyle="--", alpha=0.5)
     plt.tight_layout()
     path = os.path.join(PLOT_DIR, filename)
-    plt.savefig(path)
+    plt.savefig(path, dpi=200)
     plt.close()
     print(f"✅ Saved: {path}")
 
@@ -51,7 +52,7 @@ def plot_inter_conversation_time():
         title="Heavy-Tailed Inter-Conversation Time Distribution",
         xlabel="Inter-Conversation Time (minutes)",
         filename="inter_conversation_time_distribution.png",
-        bin_size=5
+        bin_size=1
     )
 
 
@@ -82,7 +83,7 @@ def plot_expected_messages_per_conversation():
         title="Distribution of Expected Messages per Conversation",
         xlabel="Expected Number of Messages per Conversation",
         filename="messages_per_conversation.png",
-        bin_size=5
+        bin_size=2
     )
 
 def plot_response_delay_sync():
@@ -92,7 +93,7 @@ def plot_response_delay_sync():
         title="Sync Response Time Distribution",
         xlabel="Response Delay (seconds)",
         filename=f"response_delay_sync.png",
-        bin_size=1
+        bin_size=5
     )
 
 def plot_response_delay_async():
@@ -105,6 +106,16 @@ def plot_response_delay_async():
         bin_size=1
     )
 
+def plot_message_size():
+    times = [utils.get_message_size() for _ in range(10000)]
+    plot_histogram(
+        values=times,
+        title="Message Size Distribution",
+        xlabel="Message Size (bytes)",
+        filename=f"message_size.png",
+        bin_size=10
+    )
+
 if __name__ == "__main__":
     plot_inter_conversation_time()
     plot_bursty_consecutive_messages()
@@ -112,3 +123,4 @@ if __name__ == "__main__":
     plot_expected_messages_per_conversation()
     plot_response_delay_sync()
     plot_response_delay_async()
+    plot_message_size()

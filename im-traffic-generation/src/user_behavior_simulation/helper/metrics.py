@@ -1,11 +1,17 @@
 from influxdb_client import InfluxDBClient, Point
 import time
 from influxdb_client.client.write_api import SYNCHRONOUS
+import os
+
+INFLUX_URL = os.getenv("INFLUX_URL", "http://localhost:8086")
+INFLUX_TOKEN = os.getenv("INFLUX_TOKEN", "uZa-erdN8bdeXUFO5e08zq2EjkX3vyW5R-Vu9SdlEFS94mJOsWSDuktlGpyCZgZ2E3ix5mzS74cmqiJKPoEKmg==")
+INFLUX_ORG = os.getenv("INFLUX_ORG", "imbench") 
+INFLUX_BUCKET = os.getenv("INFLUX_BUCKET", "imbench") 
 
 influx_client = InfluxDBClient(
-    url="http://localhost:8086",
-    token="uZa-erdN8bdeXUFO5e08zq2EjkX3vyW5R-Vu9SdlEFS94mJOsWSDuktlGpyCZgZ2E3ix5mzS74cmqiJKPoEKmg==",
-    org="imbench"
+    url=INFLUX_URL,
+    token=INFLUX_TOKEN,
+    org=INFLUX_ORG
 )
 write_api = influx_client.write_api(SYNCHRONOUS)
 
@@ -14,7 +20,7 @@ def log_metric(metric_name, field_name, field_value, tags):
     point = Point(metric_name).field(field_name, field_value)
     for key, val in tags.items():
         point = point.tag(key, str(val))
-    write_api.write(bucket="imbench", org="imbench", record=point)
+    write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=point)
 
 def log_conversation_duration(client_id, recipient, conversation_id, duration):
     log_metric("conversation", "duration", float(duration), {"participant_a": client_id, "participant_b": recipient, "conversation_id": conversation_id})

@@ -79,10 +79,17 @@ docker build -t denim-clients-manager -f src/benchmarking/clients-manager/Docker
 docker build -t denim-server -f src/benchmarking/server/Dockerfile .
 ```
 
+```sh
+cd ../denim-server-cpu-usage
+docker build -t denim-cpu-logger .
+```
+
 #### **Run Containers**
 ```sh
+cd ..
 docker run -p 8080:8080 --name denim-server --env-file denim-on-signal/src/benchmarking/server/.env -d denim-server
 docker run -p 8081:8081 --name denim-clients-manager --env-file denim-on-signal/src/benchmarking/clients-manager/.env -d denim-clients-manager
+docker run -v /var/run/docker.sock:/var/run/docker.sock --name denim-cpu-logger --env-file denim-server-cpu-usage/.env -d denim-cpu-logger
 ```
 
 #### **Check running containers**

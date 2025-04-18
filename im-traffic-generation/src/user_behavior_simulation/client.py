@@ -247,8 +247,9 @@ class Client:
         
         self.ongoing_conversations[conversation_id] = conversation.create_conversation_obj(recipient, conversation_type, expected_number_of_messages)
         logging.info(f"📢 Initiating conversation [{self.client_id} -> {recipient}] --- Conv: {self.ongoing_conversations[conversation_id]}")
-        inter_conversation_time = time.time() - self.last_conversation_start_timestamp
-        metrics.log_inter_conversation_time(self.client_id, recipient, conversation_id, inter_conversation_time)
+        inter_conversation_time_sec = time.time() - self.last_conversation_start_timestamp
+        inter_conversation_time_min = inter_conversation_time_sec / 60.0
+        metrics.log_inter_conversation_time(self.client_id, recipient, conversation_id, inter_conversation_time_min)
         self.last_conversation_start_timestamp = time.time()
     
         await self._send_message(recipient, conversation_id, conversation_type, expected_number_of_messages)
