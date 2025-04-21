@@ -77,17 +77,10 @@ class Client:
             payload = json.loads(message.body.decode())
             # logging.info(f"📩 Received RabbitMQ message for {self.client_id}: {payload}")
             self._handle_message(payload)
+            await message.ack()
         except Exception as e:
             logging.info(f"❌ Failed to parse message: {e}")
             await message.nack(requeue=False)  # Don't requeue broken payloads
-    
-    async def _handle_and_ack(self, message: IncomingMessage, payload):
-        try:
-            self._handle_message(payload)
-            await message.ack()
-        except Exception as e:
-            logging.info(f"❌ Error handling message in background task: {e}")
-            await message.nack(requeue=False)
 
     async def send_to_ts(self, data: dict):
         """Send message to TS via RabbitMQ."""
@@ -100,6 +93,17 @@ class Client:
             routing_key=f"py.client.{self.client_id}"
         )
         # logging.info(f"📤 Sent to TS [py.client.{self.client_id}] -> {data}")
+    
+    async def send_to_other_py(self, data: dict, recipient):
+        """Send message to TS via RabbitMQ."""
+        if self.exchange is None:
+            logging.info("❌ Cannot send message: exchange not ready.")
+            return
+
+        await self.exchange.publish(
+            Message(body=json.dumps(data).encode()),
+            routing_key=f"ts.client.{recipient}"
+        )
 
     def _handle_message(self, data: dict):
         """Handle a received message."""
@@ -131,7 +135,7 @@ class Client:
         
         logging.info(f'📩 Received Message [{sender} -> {self.client_id}] --- Conv: {conversation_id} --- Message number: {self.ongoing_conversations[conversation_id]["messages_exchanged"]}/{self.ongoing_conversations[conversation_id]["expected_number_of_messages"]}')
         
-        if int(self.ongoing_conversations[conversation_id]["messages_exchanged"]) >= int(self.ongoing_conversations[conversation_id]["expected_number_of_messages"]) or message_text == "END_CONVERSATION":
+        if message_text == "END_CONVERSATION":
             logging.info(f"🛑 Deleting conversation from memory [{sender} -> {self.client_id}]")
 
             # Cancel the associated async task if it's still running
@@ -215,6 +219,8 @@ class Client:
                 logging.info(f"\n🛑 Ending conversation [{self.client_id} -> {recipient}] — Conv: {convo}")
                 self._log_end_of_conversation(recipient, conversation_id)
                 del self.ongoing_conversations[conversation_id]
+                payload["message_content"] = "END_CONVERSATION"
+                await self.send_to_other_py(payload, str(recipient))
                 break
 
             # Delay before next message in burst

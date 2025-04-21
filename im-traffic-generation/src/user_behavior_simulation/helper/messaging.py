@@ -16,7 +16,7 @@ def extract_message_info(data):
 
 def is_relevant_message(data, client_id):
     """Check if the message is relevant to this client."""
-    return data.get("event") == "message_received" and str(data["clientId"]) == str(client_id)
+    return str(data["clientId"]) == str(client_id)
 
 
 def generate_message_text(target_bytes):
