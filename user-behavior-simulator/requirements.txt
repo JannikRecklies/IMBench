@@ -1,0 +1,13 @@
+networkx 
+numpy 
+matplotlib
+seaborn
+pandas
+scipy
+websockets
+influxdb-client
+aio-pika
+aiohttp
+fastapi 
+uvicorn
+pydantic

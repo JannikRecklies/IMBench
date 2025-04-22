@@ -84,12 +84,18 @@ cd ../denim-server-cpu-usage
 docker build -t denim-cpu-logger .
 ```
 
+```sh
+cd ../user-behavior-simulator
+docker build -t user-behavior-simulator .
+```
+
 #### **Run Containers**
 ```sh
 cd ..
 docker run -p 8080:8080 --name denim-server --env-file denim-on-signal/src/benchmarking/server/.env -d denim-server
 docker run -p 8081:8081 --name denim-clients-manager --env-file denim-on-signal/src/benchmarking/clients-manager/.env -d denim-clients-manager
 docker run -v /var/run/docker.sock:/var/run/docker.sock --name denim-cpu-logger --env-file denim-server-cpu-usage/.env -d denim-cpu-logger
+docker run -p 8000:8000 --name user-behavior-simulator --env-file user-behavior-simulator/.env -d user-behavior-simulator
 ```
 
 #### **Check running containers**
