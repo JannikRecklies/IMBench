@@ -171,7 +171,7 @@ class Client:
             await asyncio.sleep(delay)
 
             if conversation_id in self.ongoing_conversations:  # Fail-safe
-                metrics.log_response_time(self.client_id, sender, conversation_id, delay)
+                # metrics.log_response_time(self.client_id, sender, conversation_id, delay)
                 await self._send_message(sender, conversation_id, conversation_type, expected_number_of_messages)
         
         except asyncio.CancelledError:
