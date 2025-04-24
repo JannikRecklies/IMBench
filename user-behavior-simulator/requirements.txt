@@ -11,3 +11,4 @@ aiohttp
 fastapi 
 uvicorn
 pydantic
+powerlaw

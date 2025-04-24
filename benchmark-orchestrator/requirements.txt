@@ -3,3 +3,4 @@ matplotlib
 pandas
 influxdb-client
 requests
+powerlaw

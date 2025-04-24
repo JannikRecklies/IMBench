@@ -1,7 +1,9 @@
+import collections
 import os
 import matplotlib.pyplot as plt
 import numpy as np
 import user_behavior_simulation.helper.utils as utils
+import powerlaw
 
 PLOT_DIR = "plots/utils"
 os.makedirs(PLOT_DIR, exist_ok=True)
@@ -44,76 +46,157 @@ def plot_histogram(values, title, xlabel, filename, bin_size=5):
     plt.close()
     print(f"✅ Saved: {path}")
 
+def plot_powerlaw_fit(values: np.ndarray, title, xlabel, filename, unit="minutes", xmin=None, xmax=None, discrete=False):
+    """
+    Fits and plots a power-law distribution on given values.
+    
+    Parameters:
+        values (list of float): Data to fit (e.g., conversation durations)
+        title (str): Plot title
+        xlabel (str): X-axis label
+        filename (str): Output filename (PNG)
+        unit (str): Unit label used in logs and plot titles
+    """
+    if not values.any():
+        print("⚠️ No data provided to plot_powerlaw_fit.")
+        return
 
+    print(f"Fitting power-law to {values.size} values ({unit})...")
+
+    try:
+        fit = powerlaw.Fit(values, xmin=xmin, xmax=xmax, discrete=discrete)
+        alpha = fit.power_law.alpha
+        xmin = fit.power_law.xmin
+
+        print(f"Estimated power-law exponent (α): {alpha:.4f}")
+        print(f"Estimated lower bound (xmin): {xmin:.2f}")
+        
+        # Plot
+        plt.figure(figsize=(8, 6))
+        fit.power_law.plot_pdf(label=f"Power-law Fit (α ≈ {alpha:.2f})", color="red", linestyle="--")
+        plt.xlabel(xlabel)
+        plt.ylabel("Probability Density")
+        plt.title(title)
+        plt.legend()
+        plt.grid(True, which="both", linestyle="--", alpha=0.6)
+        plt.tight_layout()
+        
+        plt.savefig(filename)
+        plt.close()
+        print(f"✅ Saved: {filename}")
+
+    except Exception as e:
+        print(f"❌ Failed to fit power-law: {e}")
+
+def plot_lognormal_fit(values: np.ndarray, title, xlabel, filename, unit="minutes"):
+    """
+    Fits and plots a log-normal distribution on given values.
+
+    Parameters:
+        values (list of float): Data to fit (e.g., conversation durations)
+        title (str): Plot title
+        xlabel (str): X-axis label
+        filename (str): Output filename (PNG)
+        unit (str): Unit label used in logs and plot titles
+    """
+    if not values.any():
+        print("⚠️ No data provided to plot_lognormal_fit.")
+        return
+
+    print(f"Fitting log-normal to {values.size} values ({unit})...")
+
+    try:
+        fit = powerlaw.Fit(values, xmin=1.0)
+        mu = fit.lognormal.mu
+        sigma = fit.lognormal.sigma
+        xmin = fit.lognormal.xmin
+
+        print(f"Estimated log-normal μ: {mu:.4f}")
+        print(f"Estimated log-normal σ: {sigma:.4f}")
+        print(f"Estimated lower bound (xmin): {xmin:.2f}")
+
+        # Plot
+        plt.figure(figsize=(8, 6))
+        fit.lognormal.plot_pdf(label=f"Log-normal Fit (μ ≈ {mu:.2f}, σ ≈ {sigma:.2f})", color="green", linestyle="--")
+        plt.xlabel(xlabel)
+        plt.ylabel("Probability Density")
+        plt.title(title)
+        plt.legend()
+        plt.grid(True, which="both", linestyle="--", alpha=0.6)
+        plt.tight_layout()
+
+        plt.savefig(filename)
+        plt.close()
+        print(f"✅ Saved: {filename}")
+
+    except Exception as e:
+        print(f"❌ Failed to fit log-normal: {e}")
+        
 def plot_inter_conversation_time():
     times = [utils.get_inter_conversation_time() for _ in range(10000)]
-    plot_histogram(
-        values=times,
+    plot_powerlaw_fit(
+        values=np.array(times),
         title="Heavy-Tailed Inter-Conversation Time Distribution",
         xlabel="Inter-Conversation Time (minutes)",
-        filename="inter_conversation_time_distribution.png",
-        bin_size=1
+        filename=f"{PLOT_DIR}/inter_conversation_time_distribution.png"
     )
 
 
 def plot_bursty_consecutive_messages():
     delays = [utils.get_bursty_consecutive_messages() for _ in range(10000)]
-    plot_histogram(
-        values=delays,
+    plot_powerlaw_fit(
+        values=np.array(delays),
         title="Bursty Messages Distribution (amount of messages per burst train)",
         xlabel="Messages in a burst block",
-        filename="bursty_messages_distribution.png",
-        bin_size=1
+        filename=f"{PLOT_DIR}/bursty_messages_distribution.png",
+        xmin=1,
+        xmax=9,
+        discrete=True
     )
     
 def plot_bursty_consecutive_message_delay():
     delays = [utils.get_bursty_message_delay() * 60 for _ in range(10000)]
-    plot_histogram(
-        values=delays,
+    plot_lognormal_fit(
+        values=np.array(delays),
         title="Bursty Message Delay Distribution (within a block)",
         xlabel="Delay between messages in a burst block (seconds)",
-        filename="bursty_message_delay_distribution.png",
-        bin_size=1
+        filename=f"{PLOT_DIR}/bursty_message_delay_distribution.png"
     )
 
 def plot_expected_messages_per_conversation():
     expected_messages = [utils.get_expected_number_of_messages_for_conversation() for _ in range(10000)]
-    plot_histogram(
-        values=expected_messages,
+    plot_lognormal_fit(
+        values=np.array(expected_messages),
         title="Distribution of Expected Messages per Conversation",
         xlabel="Expected Number of Messages per Conversation",
-        filename="messages_per_conversation.png",
-        bin_size=2
+        filename=f"{PLOT_DIR}/messages_per_conversation.png"
     )
 
 def plot_response_delay_sync():
     times = [utils.get_response_delay("sync") * 60 for _ in range(10000)]
-    plot_histogram(
-        values=times,
+    plot_lognormal_fit(
+        values=np.array(times),
         title="Sync Response Time Distribution",
         xlabel="Response Delay (seconds)",
-        filename=f"response_delay_sync.png",
-        bin_size=5
+        filename=f"{PLOT_DIR}/response_delay_sync.png"
     )
 
 def plot_response_delay_async():
     times = [utils.get_response_delay("async") for _ in range(10000)]
-    plot_histogram(
-        values=times,
+    plot_lognormal_fit(
+        values=np.array(times),
         title="Async Response Time Distribution",
         xlabel="Response Delay (minutes)",
-        filename=f"response_delay_async.png",
-        bin_size=1
+        filename=f"{PLOT_DIR}/response_delay_async.png"
     )
 
 def plot_message_size():
     times = [utils.get_message_size() for _ in range(10000)]
-    plot_histogram(
-        values=times,
+    plot_lognormal_fit(
+        values=np.array(times),
         title="Message Size Distribution",
         xlabel="Message Size (bytes)",
-        filename=f"message_size.png",
-        bin_size=10
+        filename=f"{PLOT_DIR}/message_size.png"
     )
 
 if __name__ == "__main__":

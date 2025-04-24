@@ -9,8 +9,6 @@ INFLUX_URL = os.getenv("INFLUX_URL", "http://localhost:8086")
 INFLUX_TOKEN = os.getenv("INFLUX_TOKEN", "uZa-erdN8bdeXUFO5e08zq2EjkX3vyW5R-Vu9SdlEFS94mJOsWSDuktlGpyCZgZ2E3ix5mzS74cmqiJKPoEKmg==")
 INFLUX_ORG = os.getenv("INFLUX_ORG", "imbench")
 INFLUX_BUCKET = os.getenv("INFLUX_BUCKET", "imbench")
-PLOT_DIR = "plots/performance"
-os.makedirs(PLOT_DIR, exist_ok=True)
 
 client = InfluxDBClient(
     url=INFLUX_URL, 
@@ -95,7 +93,7 @@ def generate_cpu_vs_message_query(time_range: str = "-1h", window: str = "1m") -
         |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
       """
 
-def plot_latency_vs_messages(time_range="-1h"):
+def plot_latency_vs_messages(time_range: str, plot_dir: str):
     # Run the query
     flux_query_latency = generate_latency_query(time_range=time_range)
     tables = query_api.query_data_frame(flux_query_latency)
@@ -131,12 +129,12 @@ def plot_latency_vs_messages(time_range="-1h"):
     ax1.grid(True, linestyle="--", alpha=0.5)
     
     # Save plot
-    path = os.path.join(PLOT_DIR, "latency_vs_messages.png")
+    path = os.path.join(plot_dir, "latency_vs_messages.png")
     plt.savefig(path)
     print(f"✅ Saved: {path}")
     plt.close()
     
-def plot_cpu_vs_messages(time_range="-1h"):
+def plot_cpu_vs_messages(time_range: str, plot_dir: str):
     # Run the query
     flux_query_cpu = generate_cpu_vs_message_query(time_range=time_range)
     tables = query_api.query_data_frame(flux_query_cpu)
@@ -167,12 +165,14 @@ def plot_cpu_vs_messages(time_range="-1h"):
     fig.tight_layout()
     ax1.grid(True, linestyle="--", alpha=0.5)
 
-    path = os.path.join(PLOT_DIR, "cpu_vs_messages.png")
+    path = os.path.join(plot_dir, "cpu_vs_messages.png")
     plt.savefig(path)
     print(f"✅ Saved: {path}")
     plt.close()
 
-def plot_performance(time_range_min: int):
+def plot_performance(time_range_min: int, plot_dir: str):
   time_range_str = f"-{time_range_min}m"
-  plot_latency_vs_messages(time_range=time_range_str)
-  plot_cpu_vs_messages(time_range=time_range_str)
+  os.makedirs(plot_dir, exist_ok=True)
+  
+  plot_latency_vs_messages(time_range=time_range_str, plot_dir=plot_dir)
+  plot_cpu_vs_messages(time_range=time_range_str, plot_dir=plot_dir)

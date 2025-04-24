@@ -2,9 +2,9 @@ import requests
 import time
 from datetime import datetime
 from user_behavior_visualization.performance_metrics_visualization import plot_performance
-from user_behavior_visualization.user_behavior_visualization import plot_user_behavior
+from user_behavior_visualization.user_behavior_visualization import plot_user_behavior_v2
 
-BASE_URL = "http://localhost:8000"  # Adjust port if needed
+BASE_URL = "http://130.238.28.43:8000"  # Adjust port if needed
 EXPERIMENT_DURATION_MINUTES = 120
 
 def start_experiment(num_clients=50):
@@ -40,5 +40,7 @@ if __name__ == "__main__":
 
         if start_time and end_time:
             print(f"📈 Generating plots from {start_time} to {end_time}... Duration: {EXPERIMENT_DURATION_MINUTES}min")
-            plot_performance(EXPERIMENT_DURATION_MINUTES)
-            plot_user_behavior(EXPERIMENT_DURATION_MINUTES)
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            experiment_plot_dir = f"plots/{timestamp}"
+            plot_performance(EXPERIMENT_DURATION_MINUTES, f"{experiment_plot_dir}/performance")
+            plot_user_behavior_v2(EXPERIMENT_DURATION_MINUTES, f"{experiment_plot_dir}/behavior")
