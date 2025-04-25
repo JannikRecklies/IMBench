@@ -46,4 +46,4 @@ while True:
         write_api.write(bucket=INFLUX_BUCKET, record=point)
     except Exception as e:
         logging.error(f"❌ Error getting CPU usage: {e}")
-    time.sleep(30)
+    time.sleep(10)

@@ -1,3 +1,4 @@
+import collections
 from influxdb_client import InfluxDBClient
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -48,7 +49,7 @@ def query_inter_event_time(time_range: str):
 
     if df.empty or "_time" not in df.columns:
         print("⚠️ No inter-event data found.")
-        return None, None
+        exit()
 
     df["_time"] = pd.to_datetime(df["_time"])
 
@@ -70,8 +71,9 @@ def query_conversation_pairs(time_range: str):
         from(bucket: "{INFLUX_BUCKET}")
         |> range(start: {time_range})
         |> filter(fn: (r) =>
-            r._measurement == "conversation" and r._field == "duration")
-        |> keep(columns: ["conversation_id", "participant_a", "participant_b"])
+            r._measurement == "conversation" and r._field == "inter_conversation_time")
+        |> keep(columns: ["_time", "_field", "_value", "conversation_id", "participant_a", "participant_b"])
+        |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
         '''
 
     print("Querying conversation pairs...")
@@ -205,7 +207,23 @@ def plot_lognormal_fit(values: np.ndarray, title, xlabel, filename, unit="minute
     except Exception as e:
         print(f"❌ Failed to fit log-normal: {e}")
 
-def plot_powerlaw_vs_lognormal(values: np.ndarray, title, xlabel, filename, unit="minutes"):
+def plot_empirical_pdf_continuous(values, bins=50):
+    """
+    Returns (x_vals, y_vals) for plotting the empirical PDF of continuous data.
+    """
+    counts, bin_edges = np.histogram(values, bins=bins, density=True)
+    x_vals = 0.5 * (bin_edges[1:] + bin_edges[:-1])  # bin centers
+    y_vals = counts
+    return x_vals, y_vals
+
+def plot_empirical_pdf_discrete(values):
+    # Custom histogram for empirical PMF
+    counts = collections.Counter(values)
+    x_vals = sorted(counts.keys())
+    y_vals = [counts[x] / len(values) for x in x_vals]
+    return x_vals, y_vals
+
+def plot_powerlaw_vs_lognormal(values: np.ndarray, title, xlabel, filename, unit="minutes", discrete_values=False):
     """
     Fits and plots both power-law and log-normal distributions on the same plot.
 
@@ -253,7 +271,11 @@ def plot_powerlaw_vs_lognormal(values: np.ndarray, title, xlabel, filename, unit
         
         # Plot
         plt.figure(figsize=(8, 6))
-        fit.plot_pdf(label="Empirical Data", color="skyblue")
+        if discrete_values:
+            x_vals, y_vals = plot_empirical_pdf_discrete(values)
+            plt.plot(x_vals, y_vals, '-', label="Empirical Data", color="skyblue")    
+        else:
+            fit.plot_pdf(label="Empirical Data", color="skyblue")
         fit.power_law.plot_pdf(label=f"Power-law Fit (α ≈ {alpha:.2f})", color="red", linestyle="--")
         fit.lognormal.plot_pdf(label=f"Log-normal Fit (μ ≈ {mu:.2f}, σ ≈ {sigma:.2f})", color="green", linestyle="-.")
         plt.xlabel(xlabel)
@@ -373,11 +395,12 @@ def plot_user_behavior_v2(time_range_min: int, plot_dir: str):
             title="Log-normal Fit: Conversations per User Pair",
             xlabel="Number of Conversations per Pair",
             filename=f"{plot_dir}/pair_conversation_count_lognormal.png",
-            unit="conversations"
+            unit="conversations",
+            discrete_values=True
         )
     
 
-time_range_main = 6*60
-timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-experiment_plot_dir = f"plots/{timestamp}"
-plot_user_behavior_v2(time_range_main, f"{experiment_plot_dir}/behavior")
+#time_range_main = 16*60
+#timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+#experiment_plot_dir = f"plots/{timestamp}"
+#plot_user_behavior_v2(time_range_main, f"{experiment_plot_dir}/behavior")

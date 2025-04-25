@@ -1,3 +1,4 @@
+import math
 from influxdb_client import InfluxDBClient
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -14,12 +15,12 @@ client = InfluxDBClient(
     url=INFLUX_URL, 
     token=INFLUX_TOKEN, 
     org=INFLUX_ORG, 
-    timeout=30_000  # ⏱️ Timeout in milliseconds (30 seconds)
+    timeout=60_000  # ⏱️ Timeout in milliseconds (30 seconds)
 )
 query_api = client.query_api()
 
 # Define query
-def generate_latency_query(time_range="-1h", window: str = "1m"):
+def generate_latency_query(time_range="-1h", window: str = "5m"):
     return f"""
       messages = from(bucket: "imbench")
         |> range(start: {time_range})
@@ -65,7 +66,7 @@ def generate_latency_query(time_range="-1h", window: str = "1m"):
         |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
       """
 
-def generate_cpu_vs_message_query(time_range: str = "-1h", window: str = "1m") -> str:
+def generate_cpu_vs_message_query(time_range: str = "-1h", window: str = "5m") -> str:
     return f"""
       messages = from(bucket: "imbench")
         |> range(start: {time_range})
@@ -93,9 +94,9 @@ def generate_cpu_vs_message_query(time_range: str = "-1h", window: str = "1m") -
         |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
       """
 
-def plot_latency_vs_messages(time_range: str, plot_dir: str):
+def plot_latency_vs_messages(time_range: str, plot_dir: str, window= "5m"):
     # Run the query
-    flux_query_latency = generate_latency_query(time_range=time_range)
+    flux_query_latency = generate_latency_query(time_range=time_range, window=window)
     tables = query_api.query_data_frame(flux_query_latency)
 
     # Concatenate in case multiple tables are returned
@@ -134,9 +135,9 @@ def plot_latency_vs_messages(time_range: str, plot_dir: str):
     print(f"✅ Saved: {path}")
     plt.close()
     
-def plot_cpu_vs_messages(time_range: str, plot_dir: str):
+def plot_cpu_vs_messages(time_range: str, plot_dir: str, window="5m"):
     # Run the query
-    flux_query_cpu = generate_cpu_vs_message_query(time_range=time_range)
+    flux_query_cpu = generate_cpu_vs_message_query(time_range=time_range, window=window)
     tables = query_api.query_data_frame(flux_query_cpu)
 
     # Concatenate in case multiple tables are returned
@@ -174,5 +175,13 @@ def plot_performance(time_range_min: int, plot_dir: str):
   time_range_str = f"-{time_range_min}m"
   os.makedirs(plot_dir, exist_ok=True)
   
-  plot_latency_vs_messages(time_range=time_range_str, plot_dir=plot_dir)
-  plot_cpu_vs_messages(time_range=time_range_str, plot_dir=plot_dir)
+  window = math.ceil(time_range_min / 100)
+  window_str = f"{window}m"
+  
+  plot_latency_vs_messages(time_range=time_range_str, plot_dir=plot_dir, window=window_str)
+  plot_cpu_vs_messages(time_range=time_range_str, plot_dir=plot_dir, window=window_str)
+  
+#time_range_main = 16*60
+#timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+#experiment_plot_dir = f"plots/performance"
+#plot_performance(time_range_main, f"{experiment_plot_dir}")

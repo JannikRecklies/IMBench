@@ -5,7 +5,8 @@ from user_behavior_visualization.performance_metrics_visualization import plot_p
 from user_behavior_visualization.user_behavior_visualization import plot_user_behavior_v2
 
 BASE_URL = "http://130.238.28.43:8000"  # Adjust port if needed
-EXPERIMENT_DURATION_MINUTES = 120
+EXPERIMENT_DURATION_MINUTES = 600
+NUMBER_OF_USERS = 400
 
 def start_experiment(num_clients=50):
     response = requests.post(f"{BASE_URL}/start", json={"number_of_clients": num_clients})
@@ -30,7 +31,7 @@ if __name__ == "__main__":
     end_time = None
 
     try:
-        start_time = start_experiment(num_clients=100)
+        start_time = start_experiment(num_clients=NUMBER_OF_USERS)
         print(f"⏳ Experiment running for {EXPERIMENT_DURATION_MINUTES} minutes...")
         time.sleep(EXPERIMENT_DURATION_MINUTES*60)
     except KeyboardInterrupt:
@@ -40,7 +41,11 @@ if __name__ == "__main__":
 
         if start_time and end_time:
             print(f"📈 Generating plots from {start_time} to {end_time}... Duration: {EXPERIMENT_DURATION_MINUTES}min")
+            
+            duration_minutes = int((end_time - start_time).total_seconds() / 60)
+            
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             experiment_plot_dir = f"plots/{timestamp}"
-            plot_performance(EXPERIMENT_DURATION_MINUTES, f"{experiment_plot_dir}/performance")
-            plot_user_behavior_v2(EXPERIMENT_DURATION_MINUTES, f"{experiment_plot_dir}/behavior")
+            
+            plot_performance(duration_minutes, f"{experiment_plot_dir}/performance")
+            plot_user_behavior_v2(duration_minutes, f"{experiment_plot_dir}/behavior")

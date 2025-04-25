@@ -272,6 +272,7 @@ class Client:
         """Run the client, connecting and listening for messages."""
         self.loop = asyncio.get_event_loop()
         await self._connect()
+        await asyncio.sleep(10) # sleep 10 seconds before starting to initiate conversations, etc.
         self.behavior_task = asyncio.create_task(self._simulate_behavior())
         await asyncio.Future()  # Keeps it alive
     
