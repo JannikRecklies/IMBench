@@ -16,7 +16,7 @@ def generate_hk_graph(n, m=3, p=0.5):
     G = nx.powerlaw_cluster_graph(n, m, p)
     return G
 
-def assign_edge_weights(graph, alpha=1, lognorm_mu=0, lognorm_sigma=0.5, random_ratio=0.05):
+def assign_edge_weights_old(graph, alpha=1, lognorm_mu=0, lognorm_sigma=0.5, random_ratio=0.05):
     """
     Assigns edge weights using an inverse-degree power-law transformation 
     with optional random outliers. 
@@ -60,5 +60,36 @@ def assign_edge_weights(graph, alpha=1, lognorm_mu=0, lognorm_sigma=0.5, random_
         if random.random() < random_ratio:
             weight = np.random.uniform(0.01, 0.99)
         graph[u][v]["weight"] = round(weight, 2)
+
+    return graph, normalized_weights
+
+def assign_edge_weights_powerlaw(graph, alpha=2.5, min_weight=0.01, max_weight=0.99):
+    """
+    Assigns edge weights drawn from a power-law distribution.
+
+    Parameters:
+        graph (networkx.Graph): Graph to assign edge weights to.
+        alpha (float): Alpha for the power-law distribution (typical values between 2 and 3).
+        min_weight (float): Minimum possible weight after scaling.
+        max_weight (float): Maximum possible weight after scaling.
+
+    Returns:
+        graph (networkx.Graph): Graph with updated edge weights.
+        weights (list): List of assigned edge weights.
+    """
+    num_edges = graph.number_of_edges()
+
+    # Draw samples from a power-law distribution
+    raw_weights = np.random.pareto(alpha, num_edges)
+
+    # Normalize raw weights to [min_weight, max_weight]
+    raw_weights = raw_weights - raw_weights.min()  # shift so minimum is 0
+    raw_weights = raw_weights / raw_weights.max()  # scale to [0, 1]
+    normalized_weights = min_weight + raw_weights * (max_weight - min_weight)
+
+    # Assign weights to edges
+    for (edge, weight) in zip(graph.edges(), normalized_weights):
+        u, v = edge
+        graph[u][v]['weight'] = round(weight, 2)
 
     return graph, normalized_weights

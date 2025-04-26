@@ -1,3 +1,4 @@
+from collections import Counter
 import random
 import numpy as np
 import os
@@ -70,3 +71,5 @@ def choose_recipient(connections):
         return None
     neighbors, weights = zip(*connections)
     return random.choices(neighbors, weights=weights, k=1)[0]
+
+    

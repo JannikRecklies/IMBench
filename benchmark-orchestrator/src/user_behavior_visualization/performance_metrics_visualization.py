@@ -15,7 +15,7 @@ client = InfluxDBClient(
     url=INFLUX_URL, 
     token=INFLUX_TOKEN, 
     org=INFLUX_ORG, 
-    timeout=60_000  # ⏱️ Timeout in milliseconds (30 seconds)
+    timeout=600_000  # ⏱️ Timeout in milliseconds (30 seconds)
 )
 query_api = client.query_api()
 
@@ -181,7 +181,7 @@ def plot_performance(time_range_min: int, plot_dir: str):
   plot_latency_vs_messages(time_range=time_range_str, plot_dir=plot_dir, window=window_str)
   plot_cpu_vs_messages(time_range=time_range_str, plot_dir=plot_dir, window=window_str)
   
-#time_range_main = 16*60
-#timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-#experiment_plot_dir = f"plots/performance"
-#plot_performance(time_range_main, f"{experiment_plot_dir}")
+time_range_main = 20*60
+timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+experiment_plot_dir = f"plots/performance"
+plot_performance(time_range_main, f"{experiment_plot_dir}")

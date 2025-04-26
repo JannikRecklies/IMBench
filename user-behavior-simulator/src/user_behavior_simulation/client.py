@@ -241,9 +241,11 @@ class Client:
         """Randomly initiates conversations at different times."""
         while True:
             planned_inter_conversation_time = utils.get_inter_conversation_time()
-            await asyncio.sleep(planned_inter_conversation_time * 60) # min to sec
+            await asyncio.sleep(planned_inter_conversation_time * 60)  # min to sec
             recipient = utils.choose_recipient(self.connections)
-            if conversation.can_start_new_conversation(recipient, self.ongoing_conversations):
+            # Find the weight for that recipient
+            recipient_weight = dict(self.connections).get(recipient, 0.0)
+            if conversation.should_start_new_conversation(recipient, recipient_weight, self.ongoing_conversations):
                 await self._initiate_conversation(recipient)
 
     def _log_end_of_conversation(self, sender, conversation_id):

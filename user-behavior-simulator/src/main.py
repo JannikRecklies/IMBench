@@ -6,7 +6,7 @@ from typing import Dict
 import uvicorn
 
 from user_behavior_simulation.client import Client
-from social_graph_generation.social_graph_generator import generate_hk_graph, assign_edge_weights
+from social_graph_generation.social_graph_generator import generate_hk_graph, assign_edge_weights_powerlaw
 
 app = FastAPI()
 
@@ -26,7 +26,7 @@ async def start_experiment(config: ExperimentConfig):
         raise HTTPException(status_code=400, detail="Experiment is already running.")
 
     G = generate_hk_graph(n=config.number_of_clients)
-    weighted_graph, _ = assign_edge_weights(G)
+    weighted_graph, _ = assign_edge_weights_powerlaw(G)
 
     clients = {}
     threads = {}

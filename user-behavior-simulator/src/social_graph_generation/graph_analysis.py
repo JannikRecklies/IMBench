@@ -2,10 +2,10 @@ import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt
 import social_graph_generator
-import seaborn as sns
-import pandas as pd
 from collections import defaultdict
 import scipy.stats as stats
+import powerlaw
+from statsmodels.nonparametric.smoothers_lowess import lowess
 
 # Function to compute and return key graph statistics
 def compute_graph_statistics(G):
@@ -36,8 +36,9 @@ def compute_graph_statistics(G):
     }
 
 # Function to run experiments for a single graph type at different sizes
+
 def experiment_graph_model():
-    sizes = [100, 500, 1000]
+    sizes = [400, 4000]
     results = {}
 
     print(f"\n🔍 Running Experiments for HK Graph...\n")
@@ -49,34 +50,49 @@ def experiment_graph_model():
 
         # Compute statistics
         stats = compute_graph_statistics(G)
-        results[n] = {"graph": G, "stats": stats}
+        degree_distribution = stats["degree_distribution"]
+
+        # Fit power-law to degree distribution
+        fit = powerlaw.Fit(degree_distribution, discrete=True)
+        alpha = fit.power_law.alpha
+        xmin = fit.power_law.xmin
+
+        results[n] = {
+            "graph": G,
+            "stats": stats,
+            "degree_distribution": degree_distribution,
+            "fit": fit,
+            "alpha": alpha,
+            "xmin": xmin
+        }
 
     # PLOTTING
-    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    fig, axes = plt.subplots(1, len(sizes), figsize=(6 * len(sizes), 6))
     axes = axes.flatten()
 
     for ax, (n, data) in zip(axes, results.items()):
-        G, stats = data["graph"], data["stats"]
-        degree_distribution = stats["degree_distribution"]
+        degree_distribution = data["degree_distribution"]
+        fit = data["fit"]
 
-        ax.hist(degree_distribution, bins=40, alpha=0.7, color="blue", edgecolor="black", linewidth=1.2)
-        ax.set_xlabel("Node Degree", fontsize=10)
-        ax.set_ylabel("Frequency (log scale)", fontsize=10)
-        ax.set_yscale("log")
-        ax.set_title(f"HK ({n} Nodes)", fontsize=12, fontweight="bold")
-        ax.grid(axis="y", linestyle="dotted", alpha=0.7)
+        # Plot empirical PDF
+        fit.plot_pdf(ax=ax, color="skyblue", label="Empirical Data", linewidth=2)
+        fit.power_law.plot_pdf(ax=ax, color="red", linestyle="--", label=f"Power-Law Fit (α ≈ {data['alpha']:.2f})")
 
-        # Add statistics as text inside each plot
+        ax.set_xlabel("Node Degree", fontsize=11)
+        ax.set_ylabel("Probability Density", fontsize=11)
+        ax.set_title(f"HK Graph ({n} Nodes)", fontsize=13, fontweight="bold")
+        ax.grid(True, which="both", linestyle="dotted", alpha=0.7)
+        ax.legend()
+
+        # Add graph statistics as text
         stats_text = (
-            f"Clustering Coeff: {stats['clustering_coefficient']:.4f}\n"
-            f"Path Length: {stats['path_length']:.4f}\n"
-            f"Diameter: {stats['diameter']}\n"
-            f"90% effective Diameter: {stats['effective_diameter_90']}\n"
-            f"Degree Min: {min(stats['degree_distribution'])}, Max: {max(stats['degree_distribution'])}"
+            f"Clustering: {data['stats']['clustering_coefficient']:.2f}\n"
+            f"Avg. Shortest Path Length: {data['stats']['path_length']:.2f}\n"
+            f"Diameter: {data['stats']['diameter']}"
         )
-        ax.text(0.95, 0.95, stats_text, transform=ax.transAxes, fontsize=10,
-                verticalalignment="top", horizontalalignment="right",
-                bbox=dict(boxstyle="round,pad=0.3", edgecolor="black", facecolor="white", alpha=0.8))
+        ax.text(0.95, 0.95, stats_text, transform=ax.transAxes,
+                fontsize=9, verticalalignment="top", horizontalalignment="right",
+                bbox=dict(boxstyle="round,pad=0.4", edgecolor="black", facecolor="white", alpha=0.8))
 
     plt.tight_layout()
     plt.show()
@@ -99,7 +115,7 @@ def plot_weight_distribution(weights, num_bins=50):
 
     plt.tight_layout()
     plt.show()
-
+        
 def plot_avg_weight_vs_avg_degree(graph, num_bins=20):
     """Plots average edge weight vs. average node degree using equal-sized bins (same number of samples per bin)."""
 
@@ -134,10 +150,10 @@ def plot_avg_weight_vs_avg_degree(graph, num_bins=20):
 
     # Plot results
     plt.figure(figsize=(8, 5))
-    plt.plot(avg_degrees, avg_weights, marker="o", linestyle="-", color="blue")
-    plt.xlabel("Average Node Degree")
+    plt.plot(avg_degrees, avg_weights, linestyle="-", color="skyblue")
+    plt.xlabel("Node Degree")
     plt.ylabel("Average Edge Weight")
-    plt.title("Avg. Edge Weight vs. Avg. Node Degree (Equal-Sized Bins)")
+    plt.title("Edge Weight vs. Node Degree")
     plt.grid(True, linestyle="dotted")
     plt.show()
     
@@ -251,9 +267,9 @@ def plot_weight_vs_degree(graph):
         edge_weights.append(data['weight'])
 
     plt.figure(figsize=(8, 5))
-    plt.scatter(degrees, edge_weights, alpha=0.5, s=10, color="blue")
-    plt.xscale("log")  # Log scale to better show heavy-tailed effects
-    plt.xlabel("Average Node Degree (log scale)")
+    plt.scatter(degrees, edge_weights, alpha=0.5, s=10, color="skyblue")
+    # plt.xscale("log")  # Log scale to better show heavy-tailed effects
+    plt.xlabel("Average Node Degree between two connected Nodes")
     plt.ylabel("Edge Weight")
     plt.title("Edge Weight vs. Node Degree")
     plt.grid(True, linestyle="dotted")
@@ -282,17 +298,114 @@ def plot_total_weight_vs_degree(graph):
     plt.title("Total Edge Weight per Node vs. Node Degree")
     plt.grid(True, linestyle="dotted")
     plt.show()
-    
+
+def plot_weight_vs_degree_lowess(graph, filename: str, frac=0.1):
+    degrees = []
+    weights = []
+
+    for u, v, attr in graph.edges(data=True):
+        avg_deg = (graph.degree[u] + graph.degree[v]) / 2
+        weight = attr.get("weight", 0)
+        degrees.append(avg_deg)
+        weights.append(weight)
+
+    degrees = np.array(degrees)
+    weights = np.array(weights)
+
+    # Sort by degree for cleaner LOWESS curve
+    sorted_idx = np.argsort(degrees)
+    degrees = degrees[sorted_idx]
+    weights = weights[sorted_idx]
+
+    # Apply LOWESS smoothing
+    smoothed = lowess(weights, degrees, frac=frac, return_sorted=True)
+
+    # Plot
+    plt.figure(figsize=(10, 6))
+    plt.scatter(degrees, weights, alpha=0.4, s=10, color="skyblue", label="Individual Edges")
+    plt.plot(smoothed[:, 0], smoothed[:, 1], color="blue", linewidth=2, label="Smoothed Degree–Weight Curve")
+
+    plt.xlabel("Average Degree of Connected Node Pair")
+    plt.ylabel("Edge Weight")
+    plt.title("Edge Weight vs. Node Degree")
+    plt.grid(True, linestyle="dotted", alpha=0.6)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(filename, dpi=200)
+    plt.close()
+    print(f"✅ Saved: {filename}")
+
+def plot_weight_distribution_fit(weights: np.ndarray, filename: str, unit="weight", xmin=1.0):
+    """
+    Plots empirical edge weight distribution with fitted power-law and log-normal overlays.
+
+    Args:
+        weights (np.ndarray): Array of edge weights.
+        filename (str): Path to save the output plot.
+        unit (str): Label unit for logs and axes.
+        xmin (float): Lower bound for fitting.
+    """
+    if not weights.any():
+        print("⚠️ No data provided.")
+        return
+
+    print(f"Fitting distributions to {len(weights)} values ({unit})...")
+
+    try:
+        fit = powerlaw.Fit(weights, xmin=xmin, discrete=False)
+
+        alpha = fit.power_law.alpha
+        mu = fit.lognormal.mu
+        sigma = fit.lognormal.sigma
+
+        # Compare fits
+        R, p = fit.distribution_compare('power_law', 'lognormal')
+        print(f"📈 Power-law α: {alpha:.4f}")
+        print(f"📉 Log-normal μ: {mu:.4f}, σ: {sigma:.4f}")
+        print(f"📊 Log-likelihood R = {R:.3f}, p = {p:.3f}")
+
+        if p < 0.05:
+            better_fit = "Power-law" if R > 0 else "Log-normal"
+            print(f"✅ Better fit: {better_fit}")
+        else:
+            print("⚖️ No statistically significant difference between fits.")
+
+        # Plotting
+        plt.figure(figsize=(8, 6))
+        fit.plot_pdf(label="Empirical Data", color="skyblue")
+        fit.power_law.plot_pdf(label=f"Power-law (α ≈ {alpha:.2f})", color="red", linestyle="--")
+        #fit.lognormal.plot_pdf(label=f"Log-normal (μ ≈ {mu:.2f}, σ ≈ {sigma:.2f})", color="green", linestyle="-.")
+
+        plt.xlabel("Edge Weight")
+        plt.ylabel("Probability Density")
+        plt.title("Edge Weight Distribution")
+        plt.legend()
+        plt.grid(True, which="both", linestyle="--", alpha=0.6)
+        plt.tight_layout()
+
+        plt.savefig(filename, dpi=200)
+        plt.close()
+        print(f"✅ Saved: {filename}")
+
+    except Exception as e:
+        print(f"❌ Failed to fit and plot distributions: {e}")
+        
 # Run the experiment
 if __name__ == "__main__":
     # test graph properties
-    # experiment_graph_model("HK")  # Change to desired graph type
+    # experiment_graph_model()  # Change to desired graph type
     
     # test weight distribution
-    G = social_graph_generator.generate_hk_graph(1000)
-    graph, weights = social_graph_generator.assign_edge_weights(G, alpha=0.5, lognorm_mu=0, lognorm_sigma=0.5)
-    plot_weight_distribution(weights, num_bins=100)
-    plot_avg_weight_vs_avg_degree(G, num_bins=10)
-    plot_weight_vs_degree(G)
+    G = social_graph_generator.generate_hk_graph(4000)
+    graph, weights = social_graph_generator.assign_edge_weights_powerlaw(G, alpha=2.5)
+    #plot_weight_distribution(weights, num_bins=100)
+    plot_weight_distribution_fit(
+        weights=np.array(weights),
+        filename="plots/edge_weight_distribution_fit.png",
+        unit="edge weight",
+        xmin=0.01  # you can adjust if needed
+    )
+    #plot_weight_vs_degree_lowess(G, filename="plots/edge_weight_vs_node_degree.png")
+    # plot_weight_vs_degree(G)
     # plot_avg_weight_vs_common_neighbors(G)
     # plot_total_weight_vs_degree(G)

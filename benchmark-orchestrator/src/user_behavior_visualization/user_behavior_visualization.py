@@ -17,7 +17,8 @@ INFLUX_BUCKET = os.getenv("INFLUX_BUCKET", "imbench")
 influx_client = InfluxDBClient(
     url=INFLUX_URL,
     token=INFLUX_TOKEN,
-    org=INFLUX_ORG
+    org=INFLUX_ORG,
+    timeout=180_000  # ⏱️ Timeout in milliseconds (30 seconds)
 )
 query_api = influx_client.query_api()
 
@@ -71,7 +72,7 @@ def query_conversation_pairs(time_range: str):
         from(bucket: "{INFLUX_BUCKET}")
         |> range(start: {time_range})
         |> filter(fn: (r) =>
-            r._measurement == "conversation" and r._field == "inter_conversation_time")
+            r._measurement == "conversation" and r._field == "duration")
         |> keep(columns: ["_time", "_field", "_value", "conversation_id", "participant_a", "participant_b"])
         |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
         '''
@@ -111,6 +112,36 @@ def plot_histogram(values: np.ndarray, title, xlabel, filename, bin_size=5):
     for i in range(len(counts)):
         plt.text(edges[i] + bin_size / 2, counts[i], str(counts[i]),
                  ha='center', va='bottom', fontsize=8)
+
+    # Style & Save
+    plt.grid(True, linestyle="--", alpha=0.5)
+    plt.tight_layout()
+    plt.savefig(filename)
+    plt.close()
+    print(f"✅ Saved: {filename}")
+
+def plot_distribution_curve(values: np.ndarray, title, xlabel, filename, bin_size=5):
+    plt.figure(figsize=(10, 6))
+
+    # Compute histogram bins
+    bins = range(0, int(max(values)) + bin_size, bin_size)
+    counts, edges = np.histogram(values, bins=bins)
+
+    # Get bin centers for line plot
+    bin_centers = 0.5 * (edges[:-1] + edges[1:])
+
+    # Plot line graph
+    plt.plot(bin_centers, counts, linestyle='-', color='skyblue', label="Distribution")
+
+    # Labels & Title
+    plt.xlabel(xlabel)
+    #plt.xscale("log")
+    plt.ylabel("Number of Conversations")
+    plt.title(title)
+
+    # Optional: add count text
+    #for i in range(len(counts)):
+    #    plt.text(bin_centers[i], counts[i], str(counts[i]), ha='center', va='bottom', fontsize=8)
 
     # Style & Save
     plt.grid(True, linestyle="--", alpha=0.5)
@@ -364,6 +395,7 @@ def plot_user_behavior_v2(time_range_min: int, plot_dir: str):
             filename=f"{plot_dir}/inter_event_times_comparison.png",
             unit="seconds"
         )
+        plot_distribution_curve(iet_values, "Inter-Event Times Graph", "Inter-Event Times (seconds)", f"{plot_dir}/inter_event_times_histogram.png", bin_size=5)
     
     # Plot Conversation Duration (in minutes)
     durations = query_influx("duration", time_range=time_range_str)
@@ -375,6 +407,7 @@ def plot_user_behavior_v2(time_range_min: int, plot_dir: str):
             filename=f"{plot_dir}/conversation_duration_comparison.png",
             unit="minutes"
         )
+        plot_distribution_curve(durations, "Conversation Duration Graph", "Conversation Duration (minutes)", f"{plot_dir}/conversation_duration_histogram.png", bin_size=5)
     
     # Plot Inter-Conversation Time (in minutes)
     durations = query_influx("inter_conversation_time", time_range=time_range_str)
@@ -386,21 +419,23 @@ def plot_user_behavior_v2(time_range_min: int, plot_dir: str):
             filename=f"{plot_dir}/inter_conversation_time_comparison.png",
             unit="seconds"
         )
+        plot_distribution_curve(durations, "Inter-Conversation Times Graph", "Inter-Conversation Times (seconds)", f"{plot_dir}/inter_conversation_time_histogram.png", bin_size=10)
     
     # Plot Conversation Pair Conversations (in numbers)
     pair_counts = query_conversation_pairs(time_range=time_range_str)
-    if durations.any():
+    if pair_counts.any():
         plot_powerlaw_vs_lognormal(
             pair_counts,
             title="Log-normal Fit: Conversations per User Pair",
             xlabel="Number of Conversations per Pair",
-            filename=f"{plot_dir}/pair_conversation_count_lognormal.png",
+            filename=f"{plot_dir}/pair_conversation_count_comparison.png",
             unit="conversations",
             discrete_values=True
         )
+        plot_distribution_curve(pair_counts, "Conversations per User Pair Graph", "Number of Conversations per Pair", f"{plot_dir}/pair_conversation_count_histogram.png", bin_size=1)
     
 
-#time_range_main = 16*60
-#timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-#experiment_plot_dir = f"plots/{timestamp}"
-#plot_user_behavior_v2(time_range_main, f"{experiment_plot_dir}/behavior")
+time_range_main = 20*60
+timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+experiment_plot_dir = f"plots"
+plot_user_behavior_v2(time_range_main, f"{experiment_plot_dir}/behavior")

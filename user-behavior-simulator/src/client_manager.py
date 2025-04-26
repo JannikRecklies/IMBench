@@ -1,14 +1,14 @@
 import asyncio
 import threading
 from user_behavior_simulation.client import Client
-from social_graph_generation.social_graph_generator import generate_hk_graph, assign_edge_weights
+from social_graph_generation.social_graph_generator import generate_hk_graph, assign_edge_weights_powerlaw
 
 NUMBER_CLIENTS = 50
 
-def create_clients_from_graph(number_of_clients: int):
+def create_clients_from_graph():
     """Generates a social graph and initializes clients based on it."""
     G = generate_hk_graph(n=NUMBER_CLIENTS)
-    weighted_graph, weights = assign_edge_weights(G)
+    weighted_graph, weights = assign_edge_weights_powerlaw(G)
    
     clients = {}
     for node in weighted_graph.nodes():

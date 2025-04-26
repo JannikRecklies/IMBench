@@ -5,8 +5,8 @@ from user_behavior_visualization.performance_metrics_visualization import plot_p
 from user_behavior_visualization.user_behavior_visualization import plot_user_behavior_v2
 
 BASE_URL = "http://130.238.28.43:8000"  # Adjust port if needed
-EXPERIMENT_DURATION_MINUTES = 600
-NUMBER_OF_USERS = 400
+EXPERIMENT_DURATION_MINUTES = 960
+NUMBER_OF_USERS = 200
 
 def start_experiment(num_clients=50):
     response = requests.post(f"{BASE_URL}/start", json={"number_of_clients": num_clients})
