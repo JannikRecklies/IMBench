@@ -30,7 +30,8 @@ def can_start_new_conversation(recipient, ongoing_conversations):
 
 def should_start_new_conversation(recipient, weight, ongoing_conversations, max_conversations=5):
     """Decides probabilistically if a new conversation should be started based on connection strength."""
-    if not recipient or len(ongoing_conversations) >= max_conversations:
+    ongoing = any(str(conv["recipient"]) == str(recipient) for conv in ongoing_conversations.values())
+    if not recipient or ongoing or len(ongoing_conversations) >= max_conversations:
         return False
 
     # Boost weak connections slightly (optional)

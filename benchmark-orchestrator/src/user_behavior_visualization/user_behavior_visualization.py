@@ -438,4 +438,4 @@ def plot_user_behavior_v2(time_range_min: int, plot_dir: str):
 time_range_main = 20*60
 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 experiment_plot_dir = f"plots"
-plot_user_behavior_v2(time_range_main, f"{experiment_plot_dir}/behavior")
+#plot_user_behavior_v2(time_range_main, f"{experiment_plot_dir}/behavior")

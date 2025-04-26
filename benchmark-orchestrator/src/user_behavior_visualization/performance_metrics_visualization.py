@@ -184,4 +184,4 @@ def plot_performance(time_range_min: int, plot_dir: str):
 time_range_main = 20*60
 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 experiment_plot_dir = f"plots/performance"
-plot_performance(time_range_main, f"{experiment_plot_dir}")
+#plot_performance(time_range_main, f"{experiment_plot_dir}")
