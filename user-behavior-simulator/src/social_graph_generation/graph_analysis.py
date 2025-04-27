@@ -372,8 +372,8 @@ def plot_weight_distribution_fit(weights: np.ndarray, filename: str, unit="weigh
 
         # Plotting
         plt.figure(figsize=(8, 6))
-        fit.plot_pdf(label="Empirical Data", color="skyblue")
-        fit.power_law.plot_pdf(label=f"Power-law (α ≈ {alpha:.2f})", color="red", linestyle="--")
+        fit.plot_pdf(label=f"Empirical Data ({len(weights)} Edges)", color="skyblue")
+        fit.power_law.plot_pdf(label=f"Power-law fit (α ≈ {alpha:.2f})", color="red", linestyle="--")
         #fit.lognormal.plot_pdf(label=f"Log-normal (μ ≈ {mu:.2f}, σ ≈ {sigma:.2f})", color="green", linestyle="-.")
 
         plt.xlabel("Edge Weight")

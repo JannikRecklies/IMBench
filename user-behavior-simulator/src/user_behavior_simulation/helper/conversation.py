@@ -35,7 +35,7 @@ def should_start_new_conversation(recipient, weight, ongoing_conversations, max_
         return False
 
     # Boost weak connections slightly (optional)
-    adjusted_weight = 0.2 + 0.8 * weight  # ensures min 10% chance even for weakest ties
+    adjusted_weight = 0.1 + 0.9 * weight  # ensures min 10% chance even for weakest ties
 
     return random.random() < adjusted_weight
 

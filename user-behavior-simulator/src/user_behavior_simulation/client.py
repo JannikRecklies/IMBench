@@ -169,6 +169,7 @@ class Client:
             delay = utils.get_response_delay(conversation_type) * 60  # min to sec
             logging.info(f"⏳ Delay until next Message [{self.client_id} -> {sender}] --- Conv: {conversation_id} --- {delay:.2f}sec")
             await asyncio.sleep(delay)
+            self.message_tasks.pop(conversation_id, None)
 
             if conversation_id in self.ongoing_conversations:  # Fail-safe
                 # metrics.log_response_time(self.client_id, sender, conversation_id, delay)
@@ -235,7 +236,6 @@ class Client:
             delay_seconds = utils.get_bursty_message_delay() * 60
             await asyncio.sleep(delay_seconds)
         
-        self.message_tasks.pop(conversation_id, None)
 
     async def _simulate_behavior(self):
         """Randomly initiates conversations at different times."""
