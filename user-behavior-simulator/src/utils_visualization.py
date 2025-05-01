@@ -4,10 +4,97 @@ import matplotlib.pyplot as plt
 import numpy as np
 import user_behavior_simulation.helper.utils as utils
 import powerlaw
+from scipy.stats import lognorm
 
 PLOT_DIR = "plots/utils"
 os.makedirs(PLOT_DIR, exist_ok=True)
 
+def plot_powerlaw_fit_linear(values: np.ndarray, title, xlabel, filename, unit="minutes", bins=50):
+    if not values.any():
+        print("⚠️ No data provided to plot_powerlaw_fit.")
+        return
+
+    print(f"Fitting power-law to {values.size} values ({unit})...")
+
+    try:
+        # Shift data so min is ~0 (required by scipy's powerlaw distribution)
+        xmin = np.min(values)
+        shifted = values - xmin + 1e-6  # add small epsilon to avoid zero
+
+        # Fit using MLE (method of moments is worse here)
+        alpha = 1 + len(shifted) / np.sum(np.log(shifted / np.min(shifted)))
+        print(f"Estimated power-law α: {alpha:.4f} (xmin = {xmin:.2f})")
+
+        # Histogram (normalized)
+        plt.figure(figsize=(10, 6))
+        counts, bin_edges, _ = plt.hist(values, bins=bins, density=True, alpha=0.5, color='skyblue', edgecolor='black', label="Data")
+
+        # Smooth power-law curve
+        x = np.linspace(min(values), max(values), 500)
+        C = (alpha - 1) / (xmin ** (1 - alpha))  # Normalization constant
+        pdf = C * (x ** -alpha)
+
+        plt.plot(x, pdf, 'r--', label=f"Power-law Fit\nα ≈ {alpha:.2f}")
+
+        # Labels and styling
+        plt.xlabel(xlabel)
+        plt.ylabel("Probability Density")
+        plt.title(title)
+        plt.legend()
+        plt.grid(True, linestyle="--", alpha=0.6)
+        plt.tight_layout()
+        plt.savefig(filename)
+        plt.close()
+
+        print(f"✅ Saved: {filename}")
+
+    except Exception as e:
+        print(f"❌ Failed to fit and plot power-law: {e}")
+
+def plot_lognormal_fit_linear(values: np.ndarray, title, xlabel, filename, unit="minutes", bins=50):
+    if not values.any():
+        print("⚠️ No data provided to plot_lognormal_fit.")
+        return
+
+    print(f"Fitting log-normal to {values.size} values ({unit})...")
+
+    try:
+        # Estimate mu and sigma from log-transformed data
+        log_values = np.log(values[values > 0])  # Filter out zeros
+        mu = np.mean(log_values)
+        sigma = np.std(log_values)
+
+        print(f"Estimated log-normal μ: {mu:.4f}")
+        print(f"Estimated log-normal σ: {sigma:.4f}")
+
+        # Prepare figure
+        plt.figure(figsize=(10, 6))
+
+        # Histogram (normalized to form a PDF)
+        counts, bin_edges, _ = plt.hist(values, bins=bins, density=True, alpha=0.5, color='skyblue', edgecolor='black', label="Data")
+
+        # X values for smooth curve
+        x = np.linspace(min(values), max(values), 500)
+        pdf = lognorm.pdf(x, s=sigma, scale=np.exp(mu))
+
+        # Plot the fitted log-normal PDF
+        plt.plot(x, pdf, 'r--', label=f"Log-normal Fit\nμ ≈ {mu:.2f}, σ ≈ {sigma:.2f}")
+
+        # Labels and title
+        plt.xlabel(xlabel)
+        plt.ylabel("Probability Density")
+        plt.title(title)
+        plt.legend()
+        plt.grid(True, linestyle="--", alpha=0.6)
+        plt.tight_layout()
+        plt.savefig(filename)
+        plt.close()
+
+        print(f"✅ Saved: {filename}")
+
+    except Exception as e:
+        print(f"❌ Failed to fit and plot log-normal: {e}")
+    
 # ========== Plotting Functions ==========
 def plot_histogram(values, title, xlabel, filename, bin_size=5):
     plt.figure(figsize=(10, 6))
@@ -134,6 +221,13 @@ def plot_lognormal_fit(values: np.ndarray, title, xlabel, filename, unit="minute
         
 def plot_inter_conversation_time():
     times = [utils.get_inter_conversation_time() for _ in range(10000)]
+    plot_powerlaw_fit_linear(
+        values=np.array(times),
+        title="Heavy-Tailed Inter-Conversation Time Distribution",
+        xlabel="Inter-Conversation Time (minutes)",
+        filename=f"{PLOT_DIR}/inter_conversation_time_distribution_curve.png",
+        bins=50
+    )
     plot_powerlaw_fit(
         values=np.array(times),
         title="Heavy-Tailed Inter-Conversation Time Distribution",
@@ -144,6 +238,13 @@ def plot_inter_conversation_time():
 
 def plot_bursty_consecutive_messages():
     delays = [utils.get_bursty_consecutive_messages() for _ in range(10000)]
+    plot_powerlaw_fit_linear(
+        values=np.array(delays),
+        title="Bursty Messages Distribution (amount of messages per burst train)",
+        xlabel="Messages in a burst block",
+        filename=f"{PLOT_DIR}/bursty_messages_distribution_curve.png",
+        bins=9
+    )
     plot_powerlaw_fit(
         values=np.array(delays),
         title="Bursty Messages Distribution (amount of messages per burst train)",
@@ -156,7 +257,14 @@ def plot_bursty_consecutive_messages():
     
 def plot_bursty_consecutive_message_delay():
     delays = [utils.get_bursty_message_delay() * 60 for _ in range(10000)]
-    plot_lognormal_fit(
+    plot_powerlaw_fit_linear(
+        values=np.array(delays),
+        title="Bursty Message Delay Distribution (within a block)",
+        xlabel="Delay between messages in a burst block (seconds)",
+        filename=f"{PLOT_DIR}/bursty_message_delay_distribution_curve.png",
+        bins=15
+    )
+    plot_powerlaw_fit(
         values=np.array(delays),
         title="Bursty Message Delay Distribution (within a block)",
         xlabel="Delay between messages in a burst block (seconds)",
@@ -165,6 +273,13 @@ def plot_bursty_consecutive_message_delay():
 
 def plot_expected_messages_per_conversation():
     expected_messages = [utils.get_expected_number_of_messages_for_conversation() for _ in range(10000)]
+    plot_lognormal_fit_linear(
+        values=np.array(expected_messages),
+        title="Distribution of Expected Messages per Conversation",
+        xlabel="Expected Number of Messages per Conversation",
+        filename=f"{PLOT_DIR}/messages_per_conversation_curve.png",
+        bins=50
+    )
     plot_lognormal_fit(
         values=np.array(expected_messages),
         title="Distribution of Expected Messages per Conversation",
@@ -174,6 +289,13 @@ def plot_expected_messages_per_conversation():
 
 def plot_response_delay_sync():
     times = [utils.get_response_delay("sync") * 60 for _ in range(10000)]
+    plot_lognormal_fit_linear(
+        values=np.array(times),
+        title="Sync Response Time Distribution",
+        xlabel="Response Delay (seconds)",
+        filename=f"{PLOT_DIR}/response_delay_sync_curve.png",
+        bins=50
+    )
     plot_lognormal_fit(
         values=np.array(times),
         title="Sync Response Time Distribution",
@@ -183,6 +305,13 @@ def plot_response_delay_sync():
 
 def plot_response_delay_async():
     times = [utils.get_response_delay("async") for _ in range(10000)]
+    plot_lognormal_fit_linear(
+        values=np.array(times),
+        title="Async Response Time Distribution",
+        xlabel="Response Delay (minutes)",
+        filename=f"{PLOT_DIR}/response_delay_async_curve.png",
+        bins=50
+    )
     plot_lognormal_fit(
         values=np.array(times),
         title="Async Response Time Distribution",
@@ -192,6 +321,13 @@ def plot_response_delay_async():
 
 def plot_message_size():
     times = [utils.get_message_size() for _ in range(10000)]
+    plot_lognormal_fit_linear(
+        values=np.array(times),
+        title="Message Size Distribution",
+        xlabel="Message Size (bytes)",
+        filename=f"{PLOT_DIR}/message_size_curve.png",
+        bins=50
+    )
     plot_lognormal_fit(
         values=np.array(times),
         title="Message Size Distribution",

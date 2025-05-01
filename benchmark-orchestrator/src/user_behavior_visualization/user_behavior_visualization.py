@@ -9,7 +9,7 @@ from datetime import datetime
 
 # ========== Configuration ==========
 INFLUX_URL = os.getenv("INFLUX_URL", "http://130.238.29.99:8086")
-INFLUX_TOKEN = os.getenv("INFLUX_TOKEN", "yemEYq-rVtmi9p2M7nQsR2YRDr0JYi56NsOa_NwMzhwzxAUktt1S103FDux2A7Fiieb4bgcUfiPnDJKJkUYzfA==")
+INFLUX_TOKEN = os.getenv("INFLUX_TOKEN", "XcNaLw7jygc-9eyAUipHAuZiezvQGHeJJHuZNQI8X2gE8_k1HzsyXe57qPdPkR6BTp0KSm9kZNhtnxo4d0__4Q==")
 INFLUX_ORG = os.getenv("INFLUX_ORG", "imbench")
 INFLUX_BUCKET = os.getenv("INFLUX_BUCKET", "imbench")
 
@@ -307,7 +307,7 @@ def plot_powerlaw_vs_lognormal(values: np.ndarray, title, xlabel, filename, unit
             plt.plot(x_vals, y_vals, '-', label="Empirical Data", color="skyblue")    
         else:
             fit.plot_pdf(label="Empirical Data", color="skyblue")
-        fit.power_law.plot_pdf(label=f"Power-law Fit (α ≈ {alpha:.2f})", color="red", linestyle="--")
+        #fit.power_law.plot_pdf(label=f"Power-law Fit (α ≈ {alpha:.2f})", color="red", linestyle="--")
         fit.lognormal.plot_pdf(label=f"Log-normal Fit (μ ≈ {mu:.2f}, σ ≈ {sigma:.2f})", color="green", linestyle="-.")
         plt.xlabel(xlabel)
         plt.ylabel("Probability Density")
@@ -351,9 +351,9 @@ def plot_user_behavior(time_range_min: int):
         plot_powerlaw_fit(
             durations,
             title="Power-Law Fit of Inter-Conversation Times Distribution",
-            xlabel="Inter-Conversation Time (seconds)",
+            xlabel="Inter-Conversation Time (minutes)",
             filename="inter_conversation_time_powerlaw.png",
-            unit="seconds"
+            unit="minutes"
         )
         plot_lognormal_fit(
             durations,
@@ -385,24 +385,12 @@ def plot_user_behavior_v2(time_range_min: int, plot_dir: str):
     time_range_str = f"-{time_range_min}m"
     os.makedirs(plot_dir, exist_ok=True)
     
-    # Plot Inter-Event Times (in minutes)
-    iet_values = query_inter_event_time(time_range=time_range_str)
-    if iet_values.any():
-        plot_powerlaw_vs_lognormal(
-            iet_values,
-            title="Power-law vs Log-normal Fit: Inter-Event Times Distribution",
-            xlabel="Inter-Event Times (seconds)",
-            filename=f"{plot_dir}/inter_event_times_comparison.png",
-            unit="seconds"
-        )
-        plot_distribution_curve(iet_values, "Inter-Event Times Graph", "Inter-Event Times (seconds)", f"{plot_dir}/inter_event_times_histogram.png", bin_size=5)
-    
     # Plot Conversation Duration (in minutes)
     durations = query_influx("duration", time_range=time_range_str)
     if durations.any():
         plot_powerlaw_vs_lognormal(
             durations,
-            title="Power-law vs Log-normal Fit: Conversation Duration Distribution",
+            title="Log-normal Fit: Conversation Duration Distribution",
             xlabel="Conversation Duration (minutes)",
             filename=f"{plot_dir}/conversation_duration_comparison.png",
             unit="minutes"
@@ -414,10 +402,10 @@ def plot_user_behavior_v2(time_range_min: int, plot_dir: str):
     if durations.any():
         plot_powerlaw_vs_lognormal(
             durations,
-            title="Power-law vs Log-normal Fit: Inter-Conversation Times Distribution",
-            xlabel="Inter-Conversation Time (seconds)",
+            title="Log-normal Fit: Inter-Conversation Times Distribution",
+            xlabel="Inter-Conversation Time (minutes)",
             filename=f"{plot_dir}/inter_conversation_time_comparison.png",
-            unit="seconds"
+            unit="minutes"
         )
         plot_distribution_curve(durations, "Inter-Conversation Times Graph", "Inter-Conversation Times (seconds)", f"{plot_dir}/inter_conversation_time_histogram.png", bin_size=10)
     
@@ -434,8 +422,20 @@ def plot_user_behavior_v2(time_range_min: int, plot_dir: str):
         )
         plot_distribution_curve(pair_counts, "Conversations per User Pair Graph", "Number of Conversations per Pair", f"{plot_dir}/pair_conversation_count_histogram.png", bin_size=1)
     
+    # Plot Inter-Event Times (in minutes)
+    iet_values = query_inter_event_time(time_range=time_range_str)
+    if iet_values.any():
+        plot_powerlaw_vs_lognormal(
+            iet_values,
+            title="Log-normal Fit: Inter-Event Times Distribution",
+            xlabel="Inter-Event Times (seconds)",
+            filename=f"{plot_dir}/inter_event_times_comparison.png",
+            unit="seconds"
+        )
+        plot_distribution_curve(iet_values, "Inter-Event Times Graph", "Inter-Event Times (seconds)", f"{plot_dir}/inter_event_times_histogram.png", bin_size=5)
+    
 
-time_range_main = 20*60
+time_range_main = 48*60
 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 experiment_plot_dir = f"plots"
 #plot_user_behavior_v2(time_range_main, f"{experiment_plot_dir}/behavior")

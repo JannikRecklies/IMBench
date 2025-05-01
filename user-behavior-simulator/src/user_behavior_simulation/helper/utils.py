@@ -26,7 +26,7 @@ BURSTY_CONSECUTIVE_MESSAGES_ALPHA = int(os.getenv("BURSTY_CONSECUTIVE_MESSAGES_A
 BURSTY_CONSECUTIVE_MESSAGES_MINIMUM = int(os.getenv("BURSTY_CONSECUTIVE_MESSAGES_MINIMUM", 1))
 BURSTY_CONSECUTIVE_MESSAGES_MAXIMUM = int(os.getenv("BURSTY_CONSECUTIVE_MESSAGES_MAXIMUM", 10))
 
-BURSTY_MESSAGE_DELAY_MODE = float(os.getenv("BURSTY_MESSAGE_DELAY_MODE", (5.0/60.0))) # Minutes
+BURSTY_MESSAGE_DELAY_ALPHA = float(os.getenv("BURSTY_MESSAGE_DELAY_ALPHA", 1.5)) # Minutes
 BURSTY_MESSAGE_DELAY_MINIMUM = float(os.getenv("BURSTY_MESSAGE_DELAY_MINIMUM", (1.0/60.0)))
 BURSTY_MESSAGE_DELAY_MAXIMUM = float(os.getenv("BURSTY_MESSAGE_DELAY_MAXIMUM", (30.0/60.0)))
 
@@ -37,7 +37,7 @@ TEXT_SIZE_MAXIMUM = int(os.getenv("TEXT_SIZE_MAXIMUM", 500))
 sync_conversation_response_time_lognorm_distr = distributions.create_lognormal_distribution(mode=SYNC_CONVERSATION_RESPONSE_TIME_MODE, min_value=SYNC_CONVERSATION_RESPONSE_TIME_MINIMUM, max_value=SYNC_CONVERSATION_RESPONSE_TIME_MAXIMUM)
 async_conversation_response_time_lognorm_distr = distributions.create_lognormal_distribution(mode=ASYNC_CONVERSATION_RESPONSE_TIME_MODE, min_value=ASYNC_CONVERSATION_RESPONSE_TIME_MINIMUM, max_value=ASYNC_CONVERSATION_RESPONSE_TIME_MAXIMUM)
 messages_per_conversation_lognorm_distr = distributions.create_lognormal_distribution(mode=MESSAGES_PER_CONVERSATION_MODE, min_value=MESSAGES_PER_CONVERSATION_MINIMUM, max_value=MESSAGES_PER_CONVERSATION_MAXIMUM)
-bursty_message_delay_lognorm_distr = distributions.create_lognormal_distribution(mode=BURSTY_MESSAGE_DELAY_MODE, min_value=BURSTY_MESSAGE_DELAY_MINIMUM, max_value=BURSTY_MESSAGE_DELAY_MAXIMUM)
+#bursty_message_delay_lognorm_distr = distributions.create_lognormal_distribution(mode=BURSTY_MESSAGE_DELAY_MODE, min_value=BURSTY_MESSAGE_DELAY_MINIMUM, max_value=BURSTY_MESSAGE_DELAY_MAXIMUM)
 text_size_distr = distributions.create_lognormal_distribution(TEXT_SIZE_MODE, TEXT_SIZE_MINIMUM, TEXT_SIZE_MAXIMUM)
 
 def get_response_delay(conversation_type="sync"):
@@ -58,7 +58,7 @@ def get_bursty_consecutive_messages():
     return int(distributions.generate_powerlaw_value(BURSTY_CONSECUTIVE_MESSAGES_ALPHA, BURSTY_CONSECUTIVE_MESSAGES_MINIMUM, BURSTY_CONSECUTIVE_MESSAGES_MAXIMUM))
 
 def get_bursty_message_delay():
-    return float(distributions.generate_lognormal_value(bursty_message_delay_lognorm_distr, BURSTY_MESSAGE_DELAY_MINIMUM, BURSTY_MESSAGE_DELAY_MAXIMUM))
+    return float(distributions.generate_powerlaw_value(BURSTY_MESSAGE_DELAY_ALPHA, BURSTY_MESSAGE_DELAY_MINIMUM, BURSTY_MESSAGE_DELAY_MAXIMUM))
 
 def get_inter_conversation_time():
     return distributions.generate_powerlaw_value(INTER_CONVERSATION_TIME_ALPHA, INTER_CONVERSATION_TIME_MINIMUM, INTER_CONVERSATION_TIME_MAXIMUM)

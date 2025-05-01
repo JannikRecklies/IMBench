@@ -5,9 +5,16 @@ from user_behavior_visualization.performance_metrics_visualization import plot_p
 from user_behavior_visualization.user_behavior_visualization import plot_user_behavior_v2
 
 BASE_URL = "http://130.238.28.43:8000"  # Adjust port if needed
-EXPERIMENT_DURATION_MINUTES = 960
-NUMBER_OF_USERS = 200
+EXPERIMENT_DURATION_MINUTES = 300
+NUMER_OF_EXPERIMENTS=12
+NUMBER_OF_USERS = 400
 
+def wait_for_duration(minutes):
+    duration = minutes * 60  # seconds
+    start = time.time()
+    while time.time() - start < duration:
+        time.sleep(5)  # Sleep in small increments
+        
 def start_experiment(num_clients=50):
     response = requests.post(f"{BASE_URL}/start", json={"number_of_clients": num_clients})
     if response.status_code == 200:
@@ -27,17 +34,23 @@ def stop_experiment():
         return None
 
 if __name__ == "__main__":
-    start_time = None
+    start_time = datetime.utcnow() 
     end_time = None
 
     try:
-        start_time = start_experiment(num_clients=NUMBER_OF_USERS)
-        print(f"⏳ Experiment running for {EXPERIMENT_DURATION_MINUTES} minutes...")
-        time.sleep(EXPERIMENT_DURATION_MINUTES*60)
+        for i in range(NUMER_OF_EXPERIMENTS):
+            print(f"\n🚀 Starting experiment {i+1}/{NUMER_OF_EXPERIMENTS}...")
+            start_experiment(num_clients=NUMBER_OF_USERS)
+            print(f"⏳ Experiment running for {EXPERIMENT_DURATION_MINUTES} minutes...")
+            wait_for_duration(EXPERIMENT_DURATION_MINUTES)
+            stop_experiment()
+            time.sleep(30)
     except KeyboardInterrupt:
         print("\n⚠️ Experiment interrupted by user.")
+        print(f"\n🚀 Stopping experiment...")
+        stop_experiment()
     finally:
-        end_time = stop_experiment()
+        end_time = datetime.utcnow()
 
         if start_time and end_time:
             print(f"📈 Generating plots from {start_time} to {end_time}... Duration: {EXPERIMENT_DURATION_MINUTES}min")
@@ -47,5 +60,5 @@ if __name__ == "__main__":
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             experiment_plot_dir = f"plots/{timestamp}"
             
-            plot_performance(duration_minutes, f"{experiment_plot_dir}/performance")
+            # plot_performance(duration_minutes, f"{experiment_plot_dir}/performance")
             plot_user_behavior_v2(duration_minutes, f"{experiment_plot_dir}/behavior")
