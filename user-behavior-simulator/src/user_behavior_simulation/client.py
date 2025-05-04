@@ -125,8 +125,9 @@ class Client:
             conversation_type = message_content.get("conversationType") 
             expected_number_of_messages = message_content.get("expectedNumberOfMessages") 
             self.ongoing_conversations[conversation_id] = conversation.create_conversation_obj(sender, conversation_type, expected_number_of_messages)
-            inter_conversation_time = time.time() - self.last_conversation_start_timestamp
-            metrics.log_inter_conversation_time(self.client_id, sender, conversation_id, inter_conversation_time)
+            inter_conversation_time_sec = time.time() - self.last_conversation_start_timestamp
+            inter_conversation_time_min = inter_conversation_time_sec / 60.0
+            metrics.log_inter_conversation_time(self.client_id, sender, conversation_id, inter_conversation_time_min)
             self.last_conversation_start_timestamp = time.time()
             # logging.info(f"🆕 Received start of new conversation [{sender} -> {self.client_id}] [Conv: {conversation_id}] (Type: {conversation_type}, expected_number_of_messages: {expected_number_of_messages}s)")
         

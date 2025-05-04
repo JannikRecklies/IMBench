@@ -4,9 +4,10 @@ from datetime import datetime
 from user_behavior_visualization.performance_metrics_visualization import plot_performance
 from user_behavior_visualization.user_behavior_visualization import plot_user_behavior_v2
 
-BASE_URL = "http://130.238.28.43:8000"  # Adjust port if needed
+BASE_URL = "http://localhost:8000"  # Adjust port if needed
+#BASE_URL = "http://130.238.28.43:8000"  # Adjust port if needed
 EXPERIMENT_DURATION_MINUTES = 300
-NUMER_OF_EXPERIMENTS=12
+NUMER_OF_EXPERIMENTS=20
 NUMBER_OF_USERS = 400
 
 def wait_for_duration(minutes):
@@ -39,12 +40,12 @@ if __name__ == "__main__":
 
     try:
         for i in range(NUMER_OF_EXPERIMENTS):
-            print(f"\n🚀 Starting experiment {i+1}/{NUMER_OF_EXPERIMENTS}...")
+            print(f"\n🚀 {datetime.utcnow()} Starting experiment {i+1}/{NUMER_OF_EXPERIMENTS}...")
             start_experiment(num_clients=NUMBER_OF_USERS)
             print(f"⏳ Experiment running for {EXPERIMENT_DURATION_MINUTES} minutes...")
             wait_for_duration(EXPERIMENT_DURATION_MINUTES)
             stop_experiment()
-            time.sleep(30)
+            time.sleep(60)
     except KeyboardInterrupt:
         print("\n⚠️ Experiment interrupted by user.")
         print(f"\n🚀 Stopping experiment...")

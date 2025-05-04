@@ -8,8 +8,8 @@ import powerlaw
 from datetime import datetime
 
 # ========== Configuration ==========
-INFLUX_URL = os.getenv("INFLUX_URL", "http://130.238.29.99:8086")
-INFLUX_TOKEN = os.getenv("INFLUX_TOKEN", "XcNaLw7jygc-9eyAUipHAuZiezvQGHeJJHuZNQI8X2gE8_k1HzsyXe57qPdPkR6BTp0KSm9kZNhtnxo4d0__4Q==")
+INFLUX_URL = os.getenv("INFLUX_URL", "http://localhost:8086")
+INFLUX_TOKEN = os.getenv("INFLUX_TOKEN", "uZa-erdN8bdeXUFO5e08zq2EjkX3vyW5R-Vu9SdlEFS94mJOsWSDuktlGpyCZgZ2E3ix5mzS74cmqiJKPoEKmg==")
 INFLUX_ORG = os.getenv("INFLUX_ORG", "imbench")
 INFLUX_BUCKET = os.getenv("INFLUX_BUCKET", "imbench")
 
@@ -435,7 +435,7 @@ def plot_user_behavior_v2(time_range_min: int, plot_dir: str):
         plot_distribution_curve(iet_values, "Inter-Event Times Graph", "Inter-Event Times (seconds)", f"{plot_dir}/inter_event_times_histogram.png", bin_size=5)
     
 
-time_range_main = 48*60
+time_range_main = 60*168
 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 experiment_plot_dir = f"plots"
-#plot_user_behavior_v2(time_range_main, f"{experiment_plot_dir}/behavior")
+plot_user_behavior_v2(time_range_main, f"{experiment_plot_dir}/behavior")
