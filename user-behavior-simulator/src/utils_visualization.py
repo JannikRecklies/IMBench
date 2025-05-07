@@ -59,6 +59,15 @@ def plot_lognormal_fit_linear(values: np.ndarray, title, xlabel, filename, unit=
     print(f"Fitting log-normal to {values.size} values ({unit})...")
 
     try:
+        # Statistics
+        avg = np.mean(values)
+        median = np.median(values)
+        min_val = min(values)
+        max_val = max(values)
+        #stats_text = f"Avg: {avg:.2f}\nMedian: {median:.2f}\nMin: {min_val:.2f}\nMax: {max_val:.2f}"
+        stats_text = f"Avg: {avg:.2f}\nMedian: {median:.2f}"
+        print(stats_text)
+    
         # Estimate mu and sigma from log-transformed data
         log_values = np.log(values[values > 0])  # Filter out zeros
         mu = np.mean(log_values)
@@ -79,7 +88,12 @@ def plot_lognormal_fit_linear(values: np.ndarray, title, xlabel, filename, unit=
 
         # Plot the fitted log-normal PDF
         plt.plot(x, pdf, 'r--', label=f"Log-normal Fit\nμ ≈ {mu:.2f}, σ ≈ {sigma:.2f}")
-
+        
+        # Plot stats
+        props = dict(boxstyle='round', facecolor='lightgray', alpha=0.7)
+        plt.gca().text(0.95, 0.95, stats_text, transform=plt.gca().transAxes,
+                   fontsize=10, verticalalignment='top', horizontalalignment='right', bbox=props)
+        
         # Labels and title
         plt.xlabel(xlabel)
         plt.ylabel("Probability Density")
@@ -193,6 +207,14 @@ def plot_lognormal_fit(values: np.ndarray, title, xlabel, filename, unit="minute
     print(f"Fitting log-normal to {values.size} values ({unit})...")
 
     try:
+        # Statistics
+        avg = np.mean(values)
+        median = np.median(values)
+        min_val = min(values)
+        max_val = max(values)
+        stats_text = f"Avg: {avg:.2f}\nMedian: {median:.2f}"
+        print(stats_text)
+    
         fit = powerlaw.Fit(values, xmin=1.0)
         mu = fit.lognormal.mu
         sigma = fit.lognormal.sigma
@@ -205,6 +227,9 @@ def plot_lognormal_fit(values: np.ndarray, title, xlabel, filename, unit="minute
         # Plot
         plt.figure(figsize=(8, 6))
         fit.lognormal.plot_pdf(label=f"Log-normal Fit (μ ≈ {mu:.2f}, σ ≈ {sigma:.2f})", color="green", linestyle="--")
+        props = dict(boxstyle='round', facecolor='lightgray', alpha=0.7)
+        plt.gca().text(0.95, 0.95, stats_text, transform=plt.gca().transAxes,
+                   fontsize=10, verticalalignment='top', horizontalalignment='right', bbox=props)
         plt.xlabel(xlabel)
         plt.ylabel("Probability Density")
         plt.title(title)

@@ -135,7 +135,7 @@ class Client:
         self.ongoing_conversations[conversation_id]["last_message_time"] = time.time()
         self.ongoing_conversations[conversation_id]["messages_exchanged"] = int(self.ongoing_conversations[conversation_id]["messages_exchanged"]) + 1
         
-        logging.info(f'📩 Received Message [{sender} -> {self.client_id}] --- Conv: {conversation_id} --- Message number: {self.ongoing_conversations[conversation_id]["messages_exchanged"]}/{self.ongoing_conversations[conversation_id]["expected_number_of_messages"]}')
+        logging.debug(f'📩 Received Message [{sender} -> {self.client_id}] --- Conv: {conversation_id} --- Message number: {self.ongoing_conversations[conversation_id]["messages_exchanged"]}/{self.ongoing_conversations[conversation_id]["expected_number_of_messages"]}')
         
         if message_text == "END_CONVERSATION":
             logging.info(f"🛑 Deleting conversation from memory [{sender} -> {self.client_id}]")
@@ -157,7 +157,7 @@ class Client:
                 task = asyncio.create_task(self._respond_to_message(sender, conversation_id))
                 self.message_tasks[conversation_id] = task
             else:
-                logging.info("Already responding to message from same burst block.")
+                logging.debug("Already responding to message from same burst block.")
                 
 
     async def _respond_to_message(self, sender, conversation_id):
@@ -178,7 +178,6 @@ class Client:
         
         except asyncio.CancelledError:
             logging.info(f"🛑 Cancelled response task for conversation {conversation_id} on client {self.client_id}")
-            raise
         
     
     async def _send_message(self, recipient, conversation_id, conversation_type="sync", expected_number_of_messages=4):
@@ -217,7 +216,7 @@ class Client:
                 "message_content": json.dumps(message_content)
             }
 
-            logging.info(f'📤 Sending Message [{self.client_id} -> {recipient}] — Conv: {conversation_id} — Message {message_index}/{max_messages} - Burst {i+1}/{burst_size}')
+            logging.debug(f'📤 Sending Message [{self.client_id} -> {recipient}] — Conv: {conversation_id} — Message {message_index}/{max_messages} - Burst {i+1}/{burst_size}')
             await self.send_to_ts(payload)
 
             # Debug conversation state
