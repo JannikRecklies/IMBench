@@ -39,14 +39,15 @@ class Client:
         self.message_tasks = {}  # maps conversation_id → asyncio.Task
         self.behavior_task = None
         self.loop = None
-        self.channel = None
+        self.connection = None # rabbitmq
+        self.channel = None # rabbitmq
         self.exchange = None
         self.queue = None
 
     async def _connect(self):
         # 1. Connect to RabbitMQ
-        connection = await connect_robust(RABBITMQ_URL)
-        self.channel = await connection.channel()
+        self.connection = await connect_robust(RABBITMQ_URL)
+        self.channel = await self.connection.channel()
         # await self.channel.set_qos(prefetch_count=1)
 
         # 2. Declare an exchange (fanout, direct, topic, etc.)
@@ -168,7 +169,7 @@ class Client:
             expected_number_of_messages = conversation_obj["expected_number_of_messages"]
             conversation_type = utils.get_conversation_type()
             delay = utils.get_response_delay(conversation_type) * 60  # min to sec
-            logging.info(f"⏳ Delay until next Message [{self.client_id} -> {sender}] --- Conv: {conversation_id} --- {delay:.2f}sec")
+            logging.debug(f"⏳ Delay until next Message [{self.client_id} -> {sender}] --- Conv: {conversation_id} --- {delay:.2f}sec")
             await asyncio.sleep(delay)
             self.message_tasks.pop(conversation_id, None)
             
@@ -216,12 +217,11 @@ class Client:
                 "message_content": json.dumps(message_content)
             }
 
-            logging.debug(f'📤 Sending Message [{self.client_id} -> {recipient}] — Conv: {conversation_id} — Message {message_index}/{max_messages} - Burst {i+1}/{burst_size}')
-            await self.send_to_ts(payload)
-
             # Debug conversation state
+            logging.debug(f'📤 Sending Message [{self.client_id} -> {recipient}] — Conv: {conversation_id} — Message {message_index}/{max_messages} - Burst {i+1}/{burst_size}')
             ongoing_ids = " | ".join(self.ongoing_conversations.keys())
-            logging.info(f"[{self.client_id}] Active Conversations: {len(self.ongoing_conversations)} -> {ongoing_ids}")
+            logging.debug(f"[{self.client_id}] Active Conversations: {len(self.ongoing_conversations)} -> {ongoing_ids}")
+            await self.send_to_ts(payload)
 
             # End condition
             if is_last_message:
@@ -299,6 +299,7 @@ class Client:
                 self.loop.create_task(self.queue.delete(if_unused=False))
             if self.channel:
                 self.loop.create_task(self.channel.close())
+                self.loop.create_task(self.connection.close())
         except Exception as e:
             logging.warning(f"⚠️ Error during RabbitMQ cleanup for client {self.client_id}: {e}")
 
