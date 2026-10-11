@@ -23,7 +23,7 @@ runcmd:
   #- apt-get install -y docker-ce
   # Download github repo
   - cd /home/ubuntu
-  - su - ubuntu -c "git clone https://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@github.com/JannikRecklies/IMBench.git"
+  - su - ubuntu -c "git clone https://<github-access-token>@github.com/JannikRecklies/IMBench.git"
   - cd IMBench
   - git config --global user.email jannik.recklies@gmx.de
   - git config --global user.name JannikRecklies
